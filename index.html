@@ -929,6 +929,13 @@ const speedNow = () => rawSpeed() * heightFactor() * windFactor(curHdg);
 // =====================================================================
 // GOOGLE MAPS: 3D view + 2D overview
 // =====================================================================
+let fallback2D = false, big = null, bigRoute = null, bigDone = null, bigBoat = null, bigTouchedAt = -1e9;
+function graphicsInfo() {
+  let webgl2 = false, renderer = '';
+  try { const gl = document.createElement('canvas').getContext('webgl2'); webgl2 = !!gl; if (gl) { const d = gl.getExtension('WEBGL_debug_renderer_info'); renderer = d ? String(gl.getParameter(d.UNMASKED_RENDERER_WEBGL)).slice(0, 40) : ''; } } catch (_) {}
+  const cv = (navigator.userAgent.match(/Chrome\/(\d+)/) || [])[1];
+  return { webgl2, renderer, chrome: cv ? +cv : null };
+}
 let G = null, CORE = null, map3d = null, mini = null, miniRoute = null, miniDone = null, miniBoat = null, miniDots = [], P3 = null;
 let googleErr = '';
 const FILE_HELP = location.protocol === 'file:' ? ' You opened the file straight from your computer (file://). Google keys often refuse that. Run ocean-row-bridge.py and open http://localhost:8000 instead.' : '';
@@ -963,15 +970,34 @@ async function initGoogle() {
   try { G = await google.maps.importLibrary('maps'); CORE = await google.maps.importLibrary('core'); }
   catch (e) { showSetup(googleErr || ('Couldn\'t load Google Maps (' + e.message + '). Check your internet connection.' + FILE_HELP)); return; }
   const start = posAt(path, currentMeters());
+  // Google's 3D map: try twice (a network hiccup can make the first attempt fail)
+  let err3d = null;
+  for (let attempt = 0; attempt < 2 && !P3; attempt++) {
+    try { P3 = await google.maps.importLibrary('maps3d'); }
+    catch (e) { err3d = e; if (!attempt) await new Promise(r => setTimeout(r, 1500)); }
+  }
   try {
-    P3 = await google.maps.importLibrary('maps3d');
+    if (!P3) throw err3d || new Error('3D library missing');
     map3d = new P3.Map3DElement({ center: { lat: start.p[0], lng: start.p[1], altitude: 1 }, heading: start.hdg, tilt: 76, range: 45, mode: 'SATELLITE' });
     try { map3d.defaultUIHidden = true; map3d.fov = 35; } catch (_) {}
     $('view').prepend(map3d);
     if (!P3.Model3DElement) setStatus('This Google Maps version has no 3D models, so the boat can\'t be shown.', 'err');
   } catch (e) {
     map3d = null;
-    setStatus('The 3D view didn\'t load: ' + (googleErr || e.message) + ' The 2D map still works.', 'err');
+    const gi = graphicsInfo();
+    const why = !gi.webgl2 ? 'this browser has 3D graphics (WebGL 2) switched off or unsupported, and Google\'s 3D map needs it.'
+      : 'Google\'s 3D map code didn\'t start on this device. Updating Chrome from the Play Store often fixes this.';
+    setStatus(`3D view unavailable: ${why} Showing the satellite map instead. [Details: ${(googleErr || e.message || '').slice(0, 120)} · WebGL2: ${gi.webgl2 ? 'yes' : 'no'}${gi.renderer ? ' · GPU: ' + gi.renderer : ''} · Chrome ${gi.chrome || '?'}]`, 'err');
+    fallback2D = true;
+    const n = document.createElement('div'); n.id = 'notice'; n.textContent = $('status').textContent + '  (tap to hide)';
+    n.style.cssText = 'position:absolute;left:8px;right:8px;top:8px;z-index:8;background:rgba(70,22,22,.9);color:#ffd9d9;font-size:12.5px;line-height:1.35;padding:8px 10px;border-radius:10px;cursor:pointer';
+    n.onclick = () => n.remove(); $('view').appendChild(n);
+  }
+  if (fallback2D) {           // full-size satellite map that follows the boat, instead of the 3D view
+    const el = document.createElement('div'); el.id = 'bigmap'; el.style.cssText = 'position:absolute;inset:0;z-index:1'; $('view').prepend(el);
+    big = new G.Map(el, { center: { lat: start.p[0], lng: start.p[1] }, zoom: 17, mapTypeId: 'satellite', disableDefaultUI: true, zoomControl: true, gestureHandling: 'greedy', clickableIcons: false });
+    big.addListener('dragstart', () => bigTouchedAt = performance.now());
+    ['fx', 'shade', 'vignette', 'viewBtns', 'camLabel'].forEach(id => $(id).style.display = 'none');
   }
   mini = new G.Map($('mini'), { center: { lat: start.p[0], lng: start.p[1] }, zoom: 8, mapTypeId: 'hybrid', disableDefaultUI: true, zoomControl: true, gestureHandling: 'greedy', clickableIcons: false });
   mini.addListener('dragstart', () => miniTouchedAt = performance.now());
@@ -995,6 +1021,12 @@ function buildMini() {
   miniDots = [[r.pts[0], '#4cd98a'], [r.pts[r.pts.length - 1], '#ff5d5d']].map(([p, c]) =>
     new G.Circle({ map: mini, center: toLL(p), radius: Math.max(25, path.total / 300), strokeColor: '#fff', strokeWeight: 1, fillColor: c, fillOpacity: 1 }));
   fitMini();
+  if (big) {
+    [bigRoute, bigDone, bigBoat].forEach(x => x && x.setMap(null));
+    bigRoute = new G.Polyline({ map: big, path: path.line.map(toLL), strokeColor: '#ffffff', strokeOpacity: .6, strokeWeight: 3 });
+    bigDone = new G.Polyline({ map: big, path: [], strokeColor: '#ff9f43', strokeOpacity: 1, strokeWeight: 6 });
+    bigBoat = new G.Polyline({ map: big, path: [], strokeOpacity: 0, icons: [{ icon: Object.assign(arrow(), { scale: 9 }), offset: '100%' }] });
+  }
 }
 let miniCheck = 0;
 function fitMini() {
@@ -1009,6 +1041,11 @@ function updateMini(pos, idx, hdg) {
   miniDone.setPath(path.line.slice(0, idx + 1).map(a => ({ lat: a[0], lng: a[1] })).concat([ll]));
   const back = offset(pos, hdg, -Math.max(8, path.total / 2000), 0);
   miniBoat.setPath([{ lat: back[0], lng: back[1] }, ll]);
+  if (big && bigDone) {
+    bigDone.setPath(path.line.slice(0, idx + 1).map(a => ({ lat: a[0], lng: a[1] })).concat([ll]));
+    const b2 = offset(pos, hdg, -6, 0); bigBoat.setPath([{ lat: b2[0], lng: b2[1] }, ll]);
+    if (performance.now() - bigTouchedAt > 10000) big.panTo(ll);
+  }
   if (performance.now() - miniTouchedAt > 15000) {
     if (path.total >= 60000) { mini.panTo(ll); if ((mini.getZoom?.() ?? 6) < 4) mini.setZoom(6); }
     else if (++miniCheck % 20 === 0) { const b = mini.getBounds?.(); if (!b || !b.contains(ll) || (mini.getZoom?.() ?? 12) < 9) fitMini(); }
