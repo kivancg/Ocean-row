@@ -8,17 +8,12 @@
   :root { --bg:#07131f; --panel:#0c1d2e; --line:#1d3850; --fg:#e8f2fb; --muted:#8aa6bf; --accent:#ff9f43; --good:#4cd98a; --bad:#ff6b6b; }
   * { box-sizing:border-box; }
   html,body { margin:0; height:100%; background:var(--bg); color:var(--fg); font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; overflow:hidden; }
-  #app { display:flex; height:100vh; height:100dvh; }
-  #view { flex:1; min-width:0; position:relative; background:#0a2740; }
+  #app { display:grid; height:100vh; height:100dvh; grid-template-columns:minmax(0,1fr) 380px; grid-template-rows:300px minmax(0,1fr); grid-template-areas:"view map" "view panel"; }
+  #stage { display:contents; }
+  #view { grid-area:view; min-width:0; min-height:0; position:relative; background:#0a2740; }
+  #mapBox { grid-area:map; min-height:0; background:var(--panel); border-left:1px solid var(--line); padding:14px 14px 0; }
   #view gmp-map-3d { position:absolute; inset:0; width:100%; height:100%; }
-  #panel { width:380px; background:var(--panel); border-left:1px solid var(--line); display:flex; flex-direction:column; padding:14px; gap:10px; overflow-y:auto; }
-  @media (max-width: 800px) {
-    html,body { overflow:auto; }
-    #app { flex-direction:column; height:auto; }
-    #view { flex:none; height:60vh; }
-    #panel { width:auto; border-left:0; border-top:1px solid var(--line); overflow:visible; }
-    #mini { height:260px; flex:none !important; }
-  }
+  #panel { grid-area:panel; min-height:0; background:var(--panel); border-left:1px solid var(--line); display:flex; flex-direction:column; padding:14px; gap:10px; overflow-y:auto; }
   h1 { font-size:18px; margin:0; }
   select, button, input { font:inherit; color:var(--fg); }
   select, input[type=text] { width:100%; padding:8px 10px; border-radius:9px; border:1px solid var(--line); background:#102a42; }
@@ -33,7 +28,7 @@
   .bar > div { height:100%; background:linear-gradient(90deg,#ff7e3f,var(--accent)); width:0; transition:width .5s; }
   .muted { color:var(--muted); font-size:13px; line-height:1.4; }
   #pos { font-size:17px; font-weight:600; font-variant-numeric:tabular-nums; }
-  #mini { flex:1 0 180px; min-height:180px; border-radius:12px; overflow:hidden; border:1px solid var(--line); background:#0a2740; }
+  #mini { height:100%; border-radius:12px; overflow:hidden; border:1px solid var(--line); background:#0a2740; }
   #status { font-size:13px; color:var(--muted); min-height:17px; }
   #status.ok { color:var(--good); } #status.err { color:var(--bad); }
   details { font-size:13px; color:var(--muted); } summary { cursor:pointer; padding:4px 0; }
@@ -66,27 +61,61 @@
   #wxNow { font-size:12.5px; }
   .set input[type=range] { flex:1; }
   .set label { display:flex; gap:6px; align-items:center; }
-  /* phone layout (kept last so it wins over the rules above) */
-  @media (max-width: 800px) {
-    #hud { left:6px; right:6px; bottom:26px; gap:4px; display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); }
-    .tile { min-width:0; padding:4px 2px; border-radius:9px; }
-    .tile b { font-size:19px; white-space:nowrap; }
-    .tile span { font-size:8.5px; letter-spacing:.03em; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #goal { position:absolute; left:12px; top:46px; z-index:6; background:rgba(12,29,46,.9); border:1px solid #f0c040; color:#ffe39a; padding:5px 10px; border-radius:9px; font-weight:700; font-size:15px; font-variant-numeric:tabular-nums; pointer-events:none; }
+  #goal.hurry { border-color:var(--bad); color:#ffb3b3; animation:pulse .6s infinite alternate; }
+  @keyframes pulse { to { transform:scale(1.06); } }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(112px, 1fr)); gap:6px; margin-top:6px; }
+  .grid button { font-size:12.5px; padding:7px 7px; text-align:left; line-height:1.3; font-weight:600; }
+  .grid button small { font-weight:500; color:var(--muted); font-size:11px; }
+  .grid button.sel { border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); }
+  .grid button.locked { opacity:.55; }
+  .sw { display:inline-block; width:12px; height:12px; border-radius:50%; vertical-align:-1px; margin-right:5px; border:1px solid rgba(255,255,255,.35); }
+  #coinTag { color:#ffd55a; font-weight:700; }
+  /* phone layout (kept last so it wins over the rules above):
+     3D view and map side by side (stacked when the phone is upright), buttons below, small stats */
+  @media (max-width: 900px), (max-height: 560px) {
+    #app { display:flex; flex-direction:column; }
+    #stage { display:flex; flex-direction:column; flex:1 1 auto; min-height:0; }
+    #view { flex:3 1 0; }
+    #mapBox { flex:2 1 0; padding:0; border-left:0; border-top:1px solid var(--line); }
+    #mini { border-radius:0; border:0; }
+    #panel { flex:0 0 auto; max-height:36dvh; overflow-y:auto; padding:8px 10px; gap:6px; border-left:0; border-top:1px solid var(--line); }
+    #panel h1 { display:none; }
+    #panel > * { flex-shrink:0; }
+    #ctrl { order:-2; } #status { order:-1; min-height:0; }
+    #ctrl button { padding:8px 6px; }
+    .big { font-size:20px; }
+    #hud { left:4px; right:4px; bottom:4px; gap:3px; display:flex; flex-wrap:nowrap; }
+    .tile { min-width:0; flex:1 1 0; padding:2px 1px; border-radius:7px; background:rgba(7,19,31,.62); }
+    .tile b { font-size:14px; white-space:nowrap; }
+    .tile b small { display:none; }
+    .tile span { font-size:7.5px; letter-spacing:.02em; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    #windTile { display:none; }
     #camLabel { display:none; }
-    #viewBtns { top:8px; right:8px; }
-    #btnSound { top:56px; right:8px; }
-    #toast { font-size:14px; top:56px; }
+    #goal { top:6px; left:6px; font-size:13px; padding:4px 8px; }
+    #viewBtns { top:6px; right:6px; }
+    #viewBtns button { min-height:34px; padding:5px 9px; font-size:13px; }
+    #btnSound { top:48px; right:6px; }
+    #toast { font-size:14px; top:48px; padding:8px 12px; }
     #toast:not(.show) { transform:translateX(-50%) translateY(calc(-100% - 100px)); }
+  }
+  /* phone on its side: 3D on the left, map on the right */
+  @media (orientation: landscape) and (max-height: 560px), (orientation: landscape) and (max-width: 900px) {
+    #stage { flex-direction:row; }
+    #view { flex:3 1 0; } #mapBox { flex:2 1 0; border-top:0; border-left:1px solid var(--line); }
+    #panel { max-height:30dvh; }
   }
 </style>
 </head>
 <body>
 <div id="app">
+  <div id="stage">
   <div id="view">
     <div id="camLabel">Camera: –</div>
     <div id="viewBtns"><button id="btnCam" title="Change camera">🎥 Auto camera</button></div>
     <div id="shade"></div><canvas id="fx"></canvas><div id="vignette"></div>
     <div id="toast"></div>
+    <div id="goal" style="display:none"></div>
     <button id="btnSound" style="display:none">🔊 Tap for sound</button>
     <div id="hud">
       <div class="tile"><b id="hPace">–:––</b><span id="hPaceLbl">/500m</span></div>
@@ -95,9 +124,11 @@
       <div class="tile"><b id="hDist">0</b><span>meters today</span></div>
       <div class="tile"><b id="hTime">0:00</b><span>time</span></div>
       <div class="tile" id="hrTile" style="display:none"><b id="hHr">–</b><span>heart</span></div>
-      <div class="tile"><b id="hWind">–</b><span>wind</span></div>
+      <div class="tile" id="windTile"><b id="hWind">–</b><span>wind</span></div>
       <div class="tile"><b id="hLife"><small style="font-size:.55em">🐬</small> …</b><span id="hLifeLbl">learning your pace</span></div>
     </div>
+  </div>
+  <div id="mapBox"><div id="mini"></div></div>
   </div>
 
   <div id="panel">
@@ -118,14 +149,22 @@
       <div class="muted" id="posNote"></div>
     </div>
 
-    <div id="mini"></div>
-
-    <div class="row">
+    <div class="row" id="ctrl">
       <button class="primary" id="btnConnect">Connect rower</button>
       <button id="btnSim">Simulator</button>
       <button id="btnPause" disabled>Pause</button>
     </div>
     <div id="status"></div>
+
+    <details id="garage">
+      <summary>⚓ Boats &amp; treasure <span id="coinTag"></span></summary>
+      <div class="muted" id="lifeLine" style="margin-top:6px"></div>
+      <div class="label" style="margin-top:10px">Boats (unlock by rowing)</div>
+      <div class="grid" id="boatGrid"></div>
+      <div class="label" style="margin-top:10px">Paint (buy with coins)</div>
+      <div class="grid" id="paintGrid"></div>
+      <p class="muted" id="foundLine"></p>
+    </details>
 
     <details id="settings">
       <summary>Settings &amp; logbook</summary>
@@ -180,7 +219,7 @@ const MODELS = (() => {
 
   // ---- mesh builder: one primitive per color (flat shaded) ----
   const newMesh = () => ({ prims: new Map() });
-  function prim(m, color, opts = {}) {
+  function prim(m, color, opts = (m.colorOpts && m.colorOpts[color]) || {}) {
     const k = color + JSON.stringify(opts);
     let p = m.prims.get(k);
     if (!p) { p = { color, opts, pos: [], nrm: [], uv: [], col: [], idx: [] }; m.prims.set(k, p); }
@@ -237,7 +276,7 @@ const MODELS = (() => {
   // ---- generic hull: smooth U-section, raked bow, transom stern ----
   // bands: [[fromFraction, toFraction, color]] (0 = keel, 1 = deck edge). Returns deck-edge sampler.
   function hull(m, o) {
-    const { L, B, draft, free, bowRise = 0.3, transom = 0.6, fullness = 0.6, bands, deck, n = 40 } = o;
+    const { L, B, draft, free, bowRise = 0.3, transom = 0.6, fullness = 0.6, bands, deck, n = 40, open = false, floor } = o;
     const plan = t => t >= 0 ? Math.pow(Math.max(0, 1 - Math.pow(t / 0.5, 1.8 + fullness * 4)), 0.55)
                              : transom + (1 - transom) * Math.pow(Math.max(0, 1 - Math.pow(-t / 0.5, 2 + fullness * 4)), 0.5);
     const keel = t => -draft + (t > 0.3 ? Math.pow((t - 0.3) / 0.2, 2) * draft * 0.9 : 0) + (t < -0.42 ? Math.pow((-0.42 - t) / 0.08, 2) * draft * 0.35 : 0);
@@ -255,12 +294,16 @@ const MODELS = (() => {
     const tr = []; for (let k = 0; k <= 8; k++) { const [x, z] = at(-0.5, k / 8); tr.push([x, -L / 2, z]); }
     const tl = tr.map(([x, y, z]) => [-x, y, z]).reverse();
     fan(m, bands[bands.length - 1][2], [[0, -L / 2, (keel(-0.5) + sheer(-0.5)) / 2], ...tr, ...tl, tr[0]]);
-    // deck
-    for (let i = 0; i + 1 < ts.length; i++) {
+    // deck (closed boats) or floorboards (open boats)
+    if (floor) for (let i = 0; i + 1 < ts.length; i++) {
+      const a = at(ts[i], 0.3), b = at(ts[i + 1], 0.3);
+      quad(m, floor, [-a[0], ts[i] * L, a[1]], [a[0], ts[i] * L, a[1]], [b[0], ts[i + 1] * L, b[1]], [-b[0], ts[i + 1] * L, b[1]]);
+    }
+    if (!open) for (let i = 0; i + 1 < ts.length; i++) {
       const a = at(ts[i], 1), b = at(ts[i + 1], 1);
       quad(m, deck, [-a[0], ts[i] * L, a[1]], [a[0], ts[i] * L, a[1]], [b[0], ts[i + 1] * L, b[1]], [-b[0], ts[i + 1] * L, b[1]]);
     }
-    return { deckAt: y => { const t = y / L; const [x, z] = at(t, 1); return { half: x, z }; } };
+    return { deckAt: y => { const t = y / L; const [x, z] = at(t, 1); return { half: x, z }; }, floorAt: y => { const [x, z] = at(y / L, 0.3); return { half: x, z }; } };
   }
   // Cabin/superstructure: arched or boxy section lofted between y0..y1 on the deck
   function cabin(m, H, y0, y1, o) {
@@ -363,10 +406,10 @@ const MODELS = (() => {
   const C = { navy: '#1d2b48', orange: '#ff7a1a', white: '#f2f3f1', teal: '#16a3b5', deck: '#c9cfd3', dark: '#1a2430', steel: '#9aa3ab', solar: '#20365e' };
 
   // Ocean rowing boat (no rower, no oars). Waterline at z = 0.
-  function rowBoat() {
-    const m = newMesh();
+  function rowBoat(paint) {
+    const m = newMesh(); paintOpts(m, paint);
     const H = hull(m, { L: 7.2, B: 1.75, draft: 0.33, free: 0.5, bowRise: 0.7, transom: 0.62, fullness: 0.15, deck: C.deck,
-      bands: [[0, .41, C.navy], [.41, .5, C.orange], [.5, .84, C.white], [.84, .91, C.teal], [.91, 1, C.white]] });
+      bands: [[0, .41, paint ? paint.c : C.navy], [.41, .5, C.orange], [.5, .84, C.white], [.84, .91, C.teal], [.91, 1, C.white]] });
     cabin(m, H, -3.55, -1.35, { height: 0.95, color: C.white, window: C.dark, roof: C.white });
     const r = H.deckAt(-2.4); box(m, C.solar, -0.45, 0.45, -3.2, -1.7, r.z + 0.93, r.z + 0.97);     // solar panels
     cabin(m, H, 2.15, 3.25, { height: 0.5, widthF: 0.75, color: C.white, roof: C.white });
@@ -382,6 +425,177 @@ const MODELS = (() => {
     quad(m, C.orange, [0, -3.3, a.z + 2.3], [0, -3.75, a.z + 2.15], [0, -3.75, a.z + 1.95], [0, -3.3, a.z + 2.05]);
     return toGLB(m);
   }
+
+
+  // ---- more boats (unlocked by rowing). All share the rower's seat (SEAT) and oarlocks (PIN);
+  // `sink` says how far the rower and oars sit lower than in the ocean boat. Waterline at z = 0.
+  function paintOpts(m, paint) { if (paint && (paint.emissive || paint.rough != null)) m.colorOpts = { [paint.c]: { emissive: paint.emissive, rough: paint.rough } }; }
+  const WOOD = ['#8a5a32', '#9c683b'], WOOD_D = '#5e3b1f';
+  function disc(m, c, ctr, r, nrm, seg = 12) {           // flat disc facing nrm (shields, lamps)
+    const n = norm(nrm), u = norm(Math.abs(n[2]) < 0.9 ? cross(n, [0, 0, 1]) : cross(n, [1, 0, 0])), v = cross(n, u);
+    const pts = Array.from({ length: seg }, (_, k) => { const a = k / seg * 2 * Math.PI; return ctr.map((c0, i) => c0 + r * (Math.cos(a) * u[i] + Math.sin(a) * v[i])); });
+    fan(m, c, pts);
+  }
+  function riggers(m, deckZ, half, pinZ, col = C.steel) {
+    for (const s of [-1, 1]) {
+      limb(m, col, [s * half * 0.95, -0.15, deckZ], [s * 0.98, 0.2, pinZ - 0.05], 0.035);
+      limb(m, col, [s * half * 0.95, 0.55, deckZ], [s * 0.98, 0.2, pinZ - 0.05], 0.035);
+      limb(m, col, [s * half * 0.95, 0.2, deckZ + 0.02], [s * 0.98, 0.2, pinZ - 0.05], 0.03);
+      box(m, C.dark, s * 0.98 - 0.03, s * 0.98 + 0.03, 0.17, 0.23, pinZ - 0.08, pinZ + 0.04);
+    }
+  }
+  function slideSeat(m, sink, floorZ) {                    // seat rails + seat for the sliding rower
+    const seatZ = SEAT.z - sink - 0.07;
+    for (const x of [-0.12, 0.12]) box(m, '#b8bec4', x - 0.015, x + 0.015, 0.1, 1.05, floorZ, seatZ);
+    const fz = SEAT.z - sink + 0.05, fy = SEAT.y - 0.98;                                                // foot stretcher (feet end up here)
+    limb(m, C.dark, [0, fy + 0.12, floorZ], [0, fy, fz + 0.1], 0.36, 0.04);
+  }
+  // 1. Wooden skiff: clinker planks, open, a lantern on the stern
+  function skiff(paint) {
+    const m = newMesh(); paintOpts(m, paint); const sink = 0.27, top = paint ? paint.c : '#2f6f8f';
+    const bands = []; for (let k = 0; k < 6; k++) bands.push([k / 7, (k + 1) / 7, WOOD[k % 2]]); bands.push([6 / 7, 1, top]);
+    const H = hull(m, { L: 4.8, B: 1.5, draft: 0.22, free: 0.48, bowRise: 0.45, transom: 0.55, fullness: 0.45, open: true, floor: WOOD_D, bands });
+    for (const s of [-1, 1]) for (let y = -2.3; y < 2.3; y += 0.1) { const d = H.deckAt(y), d2 = H.deckAt(y + 0.1); limb(m, top, [s * d.half, y, d.z], [s * d2.half, y + 0.1, d2.z], 0.07); }   // gunwale rail
+    for (const y of [-1.7, 1.55]) { const d = H.deckAt(y); box(m, WOOD[1], -d.half * 0.95, d.half * 0.95, y - 0.13, y + 0.13, d.z - 0.2, d.z - 0.15); }   // thwarts
+    slideSeat(m, sink, H.floorAt(0.5).z);
+    const d = H.deckAt(0.2); riggers(m, d.z - 0.02, d.half, PIN.z - sink, '#7a7f84');
+    const st = H.deckAt(-2.25); limb(m, WOOD_D, [0, -2.25, st.z], [0, -2.25, st.z + 0.55], 0.04); box(m, '#e8b84a', -0.06, 0.06, -2.31, -2.19, st.z + 0.55, st.z + 0.7);   // lantern post
+    return { glb: toGLB(m), sink, lights: [[0, -2.25, st.z + 0.63, 'A', 0.45]] };
+  }
+  // 2. Racing shell: long and needle thin, wing riggers
+  function shell(paint) {
+    const m = newMesh(); paintOpts(m, paint); const sink = 0.3, col = paint ? paint.c : '#f2c230';
+    const H = hull(m, { L: 8.2, B: 0.56, draft: 0.12, free: 0.2, bowRise: 0.15, transom: 0.02, fullness: 0.1, deck: col, n: 50,
+      bands: [[0, .7, col], [.7, .85, '#f4f4ef'], [.85, 1, col]] });
+    const dz = H.deckAt(0.3).z;
+    box(m, C.dark, -0.24, 0.24, -0.45, 1.2, dz, dz + 0.012);                                            // cockpit
+    for (const x of [-0.24, 0.24]) box(m, '#d9d9d4', x - 0.02, x + 0.02, -0.45, 1.2, dz, dz + 0.06);
+    slideSeat(m, sink, dz);
+    riggers(m, dz, 0.24, PIN.z - sink);
+    limb(m, '#d9d9d4', [-0.98, 0.2, PIN.z - sink - 0.06], [0.98, 0.2, PIN.z - sink - 0.06], 0.03);         // wing bar
+    sphere(m, '#ffffff', [0, 4.1, H.deckAt(4.05).z + 0.02], 0.045, 8, 5);                                    // bow ball
+    fan(m, '#222222', [[0, -3.4, -0.1], [0, -3.25, -0.25], [0, -3.15, -0.1]]);                               // fin
+    return { glb: toGLB(m), sink, lights: [[0, 3.9, dz + 0.25, 'W', 0.35], [0, -3.9, dz + 0.25, 'W', 0.3]] };
+  }
+  // Dragon head on a post: base = neck root, dir = +1 faces +Y (bow), -1 faces -Y
+  function dragonHead(m, base, dir, sc, cols) {
+    const P = (x, y, z) => [base[0] + x * sc, base[1] + y * sc * dir, base[2] + z * sc];
+    const neck = [P(0, 0, 0), P(0, 0.25, 0.45), P(0, 0.35, 0.9), P(0, 0.3, 1.25)];
+    for (let i = 0; i + 1 < neck.length; i++) limb(m, cols.body, neck[i], neck[i + 1], (0.26 - i * 0.04) * sc);
+    const h = P(0, 0.45, 1.38);
+    limb(m, cols.body, P(0, 0.2, 1.36), P(0, 0.85, 1.32), 0.26 * sc, 0.24 * sc);                        // skull + snout
+    limb(m, cols.body, P(0, 0.3, 1.2), P(0, 0.85, 1.16), 0.2 * sc, 0.08 * sc);                          // jaw
+    limb(m, cols.mouth, P(0, 0.4, 1.26), P(0, 0.84, 1.24), 0.16 * sc, 0.05 * sc);                       // open mouth
+    for (const s of [-1, 1]) {
+      sphere(m, cols.eye, P(s * 0.12, 0.42, 1.44), 0.055 * sc, 6, 4); sphere(m, '#111111', P(s * 0.15, 0.44, 1.45), 0.027 * sc, 5, 3);
+      limb(m, cols.horn, P(s * 0.08, 0.25, 1.48), P(s * 0.2, -0.15, 1.75), 0.05 * sc);                 // horns
+      for (const k of [0, 1, 2]) limb(m, cols.mane, P(s * 0.1, 0.1 - k * 0.12, 1.3 - k * 0.25), P(s * 0.3, -0.12 - k * 0.12, 1.25 - k * 0.25), 0.05 * sc, 0.02 * sc);   // mane spikes
+      for (const k of [0, 1, 2]) limb(m, '#f4f1e6', P(s * 0.09, 0.55 + k * 0.1, 1.24), P(s * 0.09, 0.56 + k * 0.1, 1.19), 0.025 * sc);  // teeth
+    }
+    return h;
+  }
+  // 3. Viking longship: high curled prow with a dragon, shields, furled striped sail
+  function viking(paint) {
+    const m = newMesh(); paintOpts(m, paint); const sink = 0.17, accent = paint ? paint.c : '#a3262a';
+    const bands = []; for (let k = 0; k < 7; k++) bands.push([k / 8, (k + 1) / 8, k % 2 ? '#6b4423' : '#5a381c']); bands.push([7 / 8, 1, accent]);
+    const L = 9.4, H = hull(m, { L, B: 2.05, draft: 0.38, free: 0.75, bowRise: 0.9, transom: 0.0, fullness: 0.35, open: true, floor: '#6e4a2a', bands, n: 50 });
+    // prow and stern posts curling up
+    const bow = H.deckAt(L / 2 - 0.02), stern = H.deckAt(-L / 2 + 0.02);
+    const curl = (y0, z0, dir, len) => { const pts = []; for (let k = 0; k <= 8; k++) { const a = k / 8 * 1.5; pts.push([0, y0 + dir * Math.sin(a) * len * 0.45, z0 + (1 - Math.cos(a)) * len * 0.2 + k / 8 * len * 0.55]); } return pts; };
+    const pb = curl(L / 2 - 0.02, bow.z, 1, 2.2), ps = curl(-L / 2 + 0.02, stern.z, -1, 1.8);
+    for (let k = 0; k + 1 < pb.length; k++) limb(m, '#5a381c', pb[k], pb[k + 1], 0.16 - k * 0.008, 0.2 - k * 0.01);
+    for (let k = 0; k + 1 < ps.length; k++) limb(m, '#5a381c', ps[k], ps[k + 1], 0.15 - k * 0.008, 0.18 - k * 0.01);
+    dragonHead(m, pb[pb.length - 1], 1, 1.15, { body: '#6b4423', mouth: accent, eye: '#e8c547', horn: '#3e2814', mane: accent });
+    limb(m, '#3e2814', ps[ps.length - 1], [0, ps[ps.length - 1][1] + 0.35, ps[ps.length - 1][2] + 0.25], 0.09);   // stern curl
+    // shields along both sides
+    const sc = ['#f2c230', accent, '#f4f1e6', '#1f4e8c'];
+    let k = 0; for (let y = -3.5; y <= 3.6; y += 0.62) { if (Math.abs(y - 0.2) < 0.45) { k++; continue; }
+      for (const s of [-1, 1]) { const d = H.deckAt(y), c = [s * (d.half + 0.03), y, d.z - 0.12]; disc(m, sc[(k + (s > 0 ? 0 : 2)) % 4], c, 0.26, [s, 0, 0.05]); sphere(m, '#c9c2b0', [c[0] + s * 0.02, y, c[2]], 0.05, 6, 4); }
+      k++; }
+    // mast with yard and furled red-and-white sail
+    const mz = H.floorAt(1.6).z, top = mz + 5.6;
+    limb(m, '#4e3218', [0, 1.6, mz], [0, 1.6, top], 0.14);
+    limb(m, '#4e3218', [-2.3, 1.6, top - 0.6], [2.3, 1.6, top - 0.6], 0.1);
+    for (let i = 0; i < 10; i++) { const x0 = -2.2 + i * 0.44; limb(m, i % 2 ? '#f4f1e6' : accent, [x0, 1.6, top - 0.82], [x0 + 0.44, 1.6, top - 0.82], 0.3, 0.32); }
+    for (const s of [-1, 1]) limb(m, '#c9b48a', [0, 1.6, top], [s * 0.95, 1.6, H.deckAt(1.6).z], 0.02);   // shrouds
+    limb(m, '#c9b48a', [0, 1.6, top], [0, L / 2 - 0.3, bow.z + 0.6], 0.02);                              // forestay
+    for (const y of [-1.8, 2.8]) { const d = H.deckAt(y); box(m, '#7a5230', -d.half * 0.95, d.half * 0.95, y - 0.15, y + 0.15, d.z - 0.25, d.z - 0.2); }   // sea chests / benches
+    slideSeat(m, sink, H.floorAt(0.5).z);
+    for (const s of [-1, 1]) { const d = H.deckAt(0.2); box(m, '#3e2814', s * d.half - 0.08, s * d.half + 0.02, 0.1, 0.3, PIN.z - sink - 0.08, PIN.z - sink + 0.05); limb(m, '#3e2814', [s * d.half * 0.9, 0.2, PIN.z - sink - 0.02], [s * 0.98, 0.2, PIN.z - sink - 0.02], 0.06); }
+    return { glb: toGLB(m), sink, lights: [[0, -L / 2 - 0.5, ps[ps.length - 1][2] - 0.2, 'A', 0.6], [0, 1.6, top + 0.1, 'W', 0.45]] };
+  }
+  // 4. Dragon boat: long and narrow, painted scales, a big dragon head and tail, and a drum
+  function dragonBoat(paint) {
+    const m = newMesh(); paintOpts(m, paint); const sink = 0.27, col = paint ? paint.c : '#c8262c', gold = '#e8b030';
+    const L = 11.5, H = hull(m, { L, B: 1.15, draft: 0.24, free: 0.44, bowRise: 0.5, transom: 0.12, fullness: 0.3, open: true, floor: '#7a5230', n: 60,
+      bands: [[0, .35, '#1d2b48'], [.35, .5, gold], [.5, .62, col], [.62, .74, '#1f7a4a'], [.74, .86, col], [.86, 1, gold]] });
+    // scales: little gold "u" marks along both sides
+    for (const s of [-1, 1]) for (let y = -4.8; y < 4.9; y += 0.32) { const d = H.deckAt(y), z = d.z - 0.17;
+      fan(m, gold, [[s * (d.half * 0.93 + 0.012), y, z], [s * (d.half * 0.9 + 0.012), y + 0.12, z - 0.07], [s * (d.half * 0.9 + 0.012), y - 0.12, z - 0.07]]); }
+    for (const s of [-1, 1]) for (let y = -5.6; y < 5.6; y += 0.1) { const d = H.deckAt(y), d2 = H.deckAt(y + 0.1); limb(m, gold, [s * d.half, y, d.z], [s * d2.half, y + 0.1, d2.z], 0.06); }
+    const bow = H.deckAt(L / 2 - 0.1);
+    dragonHead(m, [0, L / 2 - 0.15, bow.z - 0.1], 1, 1.45, { body: col, mouth: '#f4f1e6', eye: '#f2f2f2', horn: gold, mane: '#1f7a4a' });
+    const st = H.deckAt(-L / 2 + 0.1), tail = [[0, -L / 2 + 0.1, st.z], [0, -L / 2 - 0.25, st.z + 0.5], [0, -L / 2 - 0.35, st.z + 1.1], [0, -L / 2 - 0.15, st.z + 1.5]];
+    for (let k = 0; k + 1 < tail.length; k++) limb(m, col, tail[k], tail[k + 1], 0.22 - k * 0.05, 0.12);
+    for (const s of [-1, 1]) fan(m, gold, [tail[3], [s * 0.35, -L / 2 + 0.1, st.z + 1.9], [s * 0.1, -L / 2 - 0.3, st.z + 1.4]]);   // tail fin
+    // drum near the bow, paddler benches
+    const dr = H.floorAt(3.9); limb(m, '#a3262a', [0, 3.9, dr.z], [0, 3.9, dr.z + 0.45], 0.5, 0.5); disc(m, '#efe2c2', [0, 3.9, dr.z + 0.46], 0.25, [0, 0, 1], 16);
+    for (let y = -4.2; y <= 3.2; y += 0.9) { if (Math.abs(y - 0.3) < 0.7) continue; const d = H.deckAt(y); box(m, '#9c683b', -d.half * 0.95, d.half * 0.95, y - 0.1, y + 0.1, d.z - 0.17, d.z - 0.12); }
+    slideSeat(m, sink, H.floorAt(0.5).z);
+    const d = H.deckAt(0.2); riggers(m, d.z - 0.02, d.half, PIN.z - sink, gold);
+    return { glb: toGLB(m), sink, lights: [[0, L / 2 + 0.5, bow.z + 1.3, 'A', 0.5], [0, -L / 2 - 0.2, st.z + 1.6, 'A', 0.4]] };
+  }
+  const ocean = paint => ({ glb: rowBoat(paint), sink: 0, lights: [[0, -3.3, 2.95, 'W', 1], [0, -2.0, 1.1, 'A', .6], [0, -2.9, 1.1, 'A', .6]] });
+  const BOAT_MODELS = { skiff, shell, ocean, viking, dragon: dragonBoat };
+  const boatModel = (kind, paint) => (BOAT_MODELS[kind] || skiff)(paint);
+
+  // ---- floating treasure (oversized so you can spot it from the boat) ----
+  function bottle() {
+    const m = newMesh(); m.colorOpts = { '#3f9e6a': { alpha: 0.72, rough: 0.15, emissive: 0.35 }, '#f4ecd2': { emissive: 0.4 } };
+    const prof = [[-0.5, 0.0], [-0.48, 0.2], [-0.4, 0.24], [0.15, 0.24], [0.28, 0.16], [0.36, 0.08], [0.52, 0.075], [0.55, 0.0]];
+    const secs = prof.map(([y, r]) => ({ y: y * 1.4, pts: Array.from({ length: 13 }, (_, k) => { const a = k / 12 * 2 * Math.PI; return [Math.cos(a) * r, Math.sin(a) * r]; }) }));
+    loft(m, secs, () => '#3f9e6a');
+    limb(m, '#b07a45', [0, 0.66, 0], [0, 0.82, 0], 0.13);                                                   // cork
+    limb(m, '#f4ecd2', [0, -0.45, 0.02], [0, 0.15, 0.02], 0.22, 0.2);                                    // rolled message
+    limb(m, '#c0392b', [0, -0.12, 0.02], [0, -0.06, 0.02], 0.235, 0.215);                                // ribbon
+    return toGLB(m);
+  }
+  function lifering() {
+    const m = newMesh(), R0 = 0.5, r0 = 0.14, n = 16, k = 8;
+    for (let i = 0; i < n; i++) for (let j = 0; j < k; j++) {
+      const P = (a, b) => [(R0 + r0 * Math.cos(b)) * Math.cos(a), (R0 + r0 * Math.cos(b)) * Math.sin(a), r0 * Math.sin(b)];
+      const a0 = i / n * 2 * Math.PI, a1 = (i + 1) / n * 2 * Math.PI, b0 = j / k * 2 * Math.PI, b1 = (j + 1) / k * 2 * Math.PI;
+      quad(m, Math.floor(i / 2) % 2 ? '#f4f4ef' : '#e8432e', P(a0, b0), P(a1, b0), P(a1, b1), P(a0, b1));
+    }
+    for (let i = 0; i < 4; i++) { const a = (i + 0.5) / 4 * 2 * Math.PI, b = (i + 1.5) / 4 * 2 * Math.PI; limb(m, '#d9d0b8', [Math.cos(a) * 0.66, Math.sin(a) * 0.66, 0.05], [Math.cos(b) * 0.66, Math.sin(b) * 0.66, 0.05], 0.03); }
+    return toGLB(m);
+  }
+  function crate() {
+    const m = newMesh(), w = '#a8763f', d = '#6e4a26';
+    box(m, w, -0.5, 0.5, -0.5, 0.5, -0.35, 0.45);
+    for (const z of [-0.2, 0.05, 0.3]) for (const s of [-1, 1]) box(m, d, s * 0.505 - 0.005, s * 0.505 + 0.005, -0.5, 0.5, z - 0.012, z + 0.012);
+    for (const s of [-1, 1]) { limb(m, d, [-0.5, s * 0.506, -0.35], [0.5, s * 0.506, 0.45], 0.07, 0.015); box(m, '#f4f1e6', -0.18, 0.18, s * 0.507 - 0.003, s * 0.507 + 0.003, 0.0, 0.2); }
+    box(m, d, -0.5, 0.5, -0.5, 0.5, 0.45, 0.47, 't');
+    return toGLB(m);
+  }
+  function chest() {
+    const m = newMesh(); m.colorOpts = { '#f0c040': { emissive: 0.55, rough: 0.3 }, '#ffe9a0': { emissive: 0.9 } };
+    const wood = '#6e3f1e', gold = '#f0c040';
+    box(m, wood, -0.6, 0.6, -0.38, 0.38, -0.3, 0.3);
+    const secs = []; for (let i = 0; i <= 1; i++) secs.push({ y: -0.6 + 1.2 * i, pts: Array.from({ length: 9 }, (_, k) => { const a = Math.PI * k / 8; return [-Math.cos(a) * 0.38, 0.3 + Math.sin(a) * 0.3]; }) });
+    for (const s of secs) s.pts = s.pts.map(([x, z]) => [x, z]);
+    const lid = secs.map(s => ({ y: s.y, pts: s.pts }));
+    for (let k = 0; k + 1 < 9; k++) quad(m, wood, [lid[0].y, lid[0].pts[k][0], lid[0].pts[k][1]], [lid[1].y, lid[1].pts[k][0], lid[1].pts[k][1]], [lid[1].y, lid[1].pts[k + 1][0], lid[1].pts[k + 1][1]], [lid[0].y, lid[0].pts[k + 1][0], lid[0].pts[k + 1][1]]);
+    for (const x of [-0.6, 0.6]) fan(m, wood, lid[0].pts.map(([y, z]) => [x, y, z]));
+    for (const x of [-0.45, 0, 0.45]) {                                                                    // gold bands
+      box(m, gold, x - 0.05, x + 0.05, -0.39, 0.39, -0.31, 0.31, 'sides');
+      for (let k = 0; k + 1 < 9; k++) limb(m, gold, [x, lid[0].pts[k][0] * 1.03, lid[0].pts[k][1] + (lid[0].pts[k][1] - 0.3) * 0.03], [x, lid[0].pts[k + 1][0] * 1.03, lid[0].pts[k + 1][1] + (lid[0].pts[k + 1][1] - 0.3) * 0.03], 0.1, 0.02);
+    }
+    box(m, gold, -0.1, 0.1, 0.38, 0.42, 0.12, 0.34);                                                       // lock
+    for (let i = 0; i < 7; i++) sphere(m, '#ffe9a0', [-0.4 + i * 0.13, -0.2 + (i % 3) * 0.17, 0.33 + (i % 2) * 0.05], 0.07, 6, 4);   // coins spilling out
+    return toGLB(m);
+  }
+  const ITEM_MODELS = { bottle, ring: lifering, crate, chest };
 
   // Seated rower facing the stern (-Y). Origin at the seat. heightM scales the body.
   function rower(heightM = 1.75, shirt = '#16a3b5') {
@@ -660,7 +874,7 @@ const MODELS = (() => {
   }
 
   const waveMax = amp => WAVES.reduce((t, w) => t + w[2], 0) * amp;
-  return { waveMax, bird, rowerPose, strokeAt, dolphin, whale, spout, turtle, shark, seal, toDataURL, rowBoat, rower, oar, wake, cargo, tanker, ferry, fishing, sailboat, motorYacht, sea, waveH, PERIOD, PIN, SEAT };
+  return { boatModel, ITEM_MODELS, waveMax, bird, rowerPose, strokeAt, dolphin, whale, spout, turtle, shark, seal, toDataURL, rowBoat, rower, oar, wake, cargo, tanker, ferry, fishing, sailboat, motorYacht, sea, waveH, PERIOD, PIN, SEAT };
 })();
 
 </script>
@@ -707,8 +921,177 @@ const ROUTES = [
     pts:[[36.605,-121.89],[36.78,-122.05],[21.42,-157.45],[21.18,-157.62],[21.285,-157.855]] },
   { id:"indian", group:'ocean', name:"Indian Ocean: Geraldton → Mauritius", start:"Geraldton", end:"Port Louis", traffic:'ocean', lane:'open', spread:4000,
     pts:[[-28.775,114.6],[-28,113.9],[-20.8,57.5],[-20.44991,57.1999],[-20.2,57.30008],[-20.10999,57.41998],[-20.15598,57.4807]] },
+  {"id":"thames","group":"city","name":"London: Tower Bridge → Westminster","start":"Tower Bridge","end":"Westminster (Big Ben)","traffic":"harbour","lane":"along","spread":120,
+    pts:[[51.50579,-0.07523],[51.50784,-0.0832],[51.5073,-0.08501],[51.5076,-0.088],[51.5083,-0.092],[51.5088,-0.096],[51.5091,-0.1],[51.5089,-0.104],[51.50852,-0.10553],[51.50879,-0.11662],[51.50502,-0.12034],[51.50049,-0.12051]] },
+  {"id":"venice","group":"city","name":"Venice: St Mark's → Murano","start":"St Mark's Square","end":"Murano","traffic":"harbour","lane":"along","spread":150,
+    pts:[[45.43196,12.34008],[45.42873,12.35575],[45.42895,12.35605],[45.42927,12.37142],[45.43261,12.37065],[45.44102,12.37065],[45.44199,12.36497],[45.44997,12.35406]] },
+  {"id":"stockholm","group":"city","name":"Stockholm: Old Town → Fjäderholmarna","start":"Gamla Stan","end":"Fjäderholmarna","traffic":"harbour","lane":"along","spread":200,
+    pts:[[59.32299,18.07654],[59.32385,18.09027],[59.32493,18.09471],[59.32159,18.09555],[59.32094,18.11288],[59.31889,18.11309],[59.3218,18.1564],[59.32493,18.1507],[59.32547,18.16908]] },
+  {"id":"hudson","group":"city","name":"New York: Hudson River → Statue of Liberty","start":"Pier 86 (Intrepid)","end":"Liberty Island","traffic":"harbour","lane":"along","spread":250,
+    pts:[[40.76445,-74.00391],[40.75677,-74.00925],[40.72996,-74.01707],[40.70395,-74.02294],[40.69048,-74.04303]] },
+  {"id":"goldengate","group":"city","name":"San Francisco: Sausalito → under the Golden Gate","start":"Sausalito","end":"Aquatic Park","traffic":"harbour","lane":"cross","spread":900,
+    pts:[[37.85605,-122.47701],[37.83355,-122.4707],[37.83099,-122.47394],[37.83301,-122.47804],[37.81994,-122.47838],[37.81105,-122.45995],[37.80943,-122.42344]] },
+  {"id":"sydneybridge","group":"city","name":"Sydney: under the Harbour Bridge → Opera House","start":"Lavender Bay","end":"Fort Denison","traffic":"harbour","lane":"along","spread":200,
+    pts:[[-33.8488,151.2075],[-33.852,151.2105],[-33.854,151.215],[-33.856,151.219],[-33.8548,151.224]] },
+  {"id":"goldenhorn","group":"city","name":"Istanbul: Golden Horn → Eyüp","start":"Galata Bridge","end":"Eyüp","traffic":"harbour","lane":"along","spread":150,
+    pts:[[41.02004,28.97398],[41.0257,28.96516],[41.03002,28.96004],[41.03568,28.95064],[41.04187,28.94504],[41.04196,28.94504],[41.04735,28.93754]] },
+  {"id":"rio","group":"city","name":"Rio de Janeiro: Botafogo → Sugarloaf → Copacabana","start":"Botafogo","end":"Copacabana","traffic":"harbour","lane":"along","spread":300,
+    pts:[[-22.94403,-43.17802],[-22.945,-43.17182],[-22.94198,-43.16],[-22.9381,-43.15192],[-22.95082,-43.14981],[-22.95103,-43.15004],[-22.96203,-43.15801],[-22.96526,-43.16],[-22.97302,-43.182],[-22.97292,-43.18212]] },
+  {"id":"monaco","group":"city","name":"Riviera: Monaco → Villefranche","start":"Port Hercule, Monaco","end":"Villefranche-sur-Mer","traffic":"medium","lane":"along","spread":500,
+    pts:[[43.73447,7.42596],[43.73626,7.43143],[43.73626,7.43168],[43.73554,7.43243],[43.72261,7.41826],[43.71991,7.41006],[43.68991,7.34991],[43.68614,7.3509],[43.67356,7.33101],[43.6741,7.3253],[43.69027,7.31884],[43.69494,7.32008],[43.70195,7.31188]] },
+  {"id":"dubrovnik","group":"city","name":"Dubrovnik: Old Town → around Lokrum","start":"Dubrovnik old port","end":"Dubrovnik old port","traffic":"harbour","lane":"along","spread":250,
+    pts:[[42.64122,18.11244],[42.63601,18.12099],[42.62469,18.12575],[42.62442,18.12526],[42.62146,18.131],[42.629,18.13503],[42.63304,18.12599],[42.6405,18.11354]] },
+  {"id":"amalfi","group":"city","name":"Amalfi Coast: Positano → Amalfi","start":"Positano","end":"Amalfi","traffic":"medium","lane":"along","spread":500,
+    pts:[[40.62692,14.48612],[40.61254,14.52021],[40.60572,14.5292],[40.61165,14.57418],[40.61919,14.57986],[40.61937,14.57962],[40.63159,14.60211],[40.63195,14.60211]] },
+  {"id":"halong","group":"nature","name":"Ha Long Bay: Bai Chay → Ti Top Island","start":"Bai Chay","end":"Ti Top Island","traffic":"harbour","lane":"along","spread":300,
+    pts:[[20.94805,107.06502],[20.91006,107.08002],[20.87004,107.08493],[20.85602,107.08695]] },
+  {"id":"whitsunday","group":"nature","name":"Great Barrier Reef: Airlie Beach → Whitehaven Beach","start":"Airlie Beach","end":"Whitehaven Beach","traffic":"medium","lane":"open","spread":800,
+    pts:[[-20.26506,148.71981],[-20.23272,148.75428],[-20.23056,148.76769],[-20.26649,148.88414],[-20.29308,148.91364],[-20.3301,148.96343],[-20.32363,149.02396],[-20.31033,149.04886],[-20.29812,149.06456],[-20.2938,149.06456],[-20.28482,149.05001]] },
+  {"id":"greenisland","group":"nature","name":"Great Barrier Reef: Cairns → Green Island","start":"Cairns","end":"Green Island","traffic":"medium","lane":"open","spread":800,
+    pts:[[-16.91487,145.78014],[-16.84992,145.84997],[-16.75991,145.96991]] },
+  {"id":"milford","group":"nature","name":"Milford Sound: the fjord to the Tasman Sea","start":"Milford Sound wharf","end":"Tasman Sea","traffic":"harbour","lane":"along","spread":300,
+    pts:[[-44.66989,167.92498],[-44.63997,167.88996],[-44.62017,167.8661],[-44.60063,167.829],[-44.59968,167.81707],[-44.57004,167.77997]] },
+  {"id":"geiranger","group":"nature","name":"Geirangerfjord: Hellesylt → Geiranger","start":"Hellesylt","end":"Geiranger","traffic":"harbour","lane":"along","spread":300,
+    pts:[[62.08628,6.87245],[62.10622,6.9358],[62.10649,6.94962],[62.10002,6.97986],[62.09423,7.03486],[62.09463,7.05703],[62.09922,7.08352],[62.11309,7.10368],[62.11323,7.10339],[62.11592,7.14457],[62.11053,7.17826],[62.10124,7.20505]] },
+  {"id":"santorini","group":"nature","name":"Santorini: across the volcano to Oia","start":"Fira old port","end":"Ammoudi Bay, Oia","traffic":"harbour","lane":"along","spread":400,
+    pts:[[36.41752,25.42808],[36.43005,25.39994],[36.44999,25.38001],[36.45875,25.37012],[36.45929,25.37079]] },
+  {"id":"phiphi","group":"nature","name":"Thailand: Phi Phi Don → Maya Bay","start":"Ton Sai Bay","end":"Maya Bay","traffic":"harbour","lane":"along","spread":300,
+    pts:[[7.7361,98.76805],[7.71656,98.77076],[7.72006,98.76002],[7.69001,98.76002],[7.68099,98.76165],[7.67802,98.76601]] },
+  {"id":"napali","group":"nature","name":"Hawaii: Hanalei Bay → Nā Pali Coast","start":"Hanalei Bay","end":"Kalalau Beach","traffic":"medium","lane":"along","spread":600,
+    pts:[[22.21509,-159.49988],[22.22991,-159.56004],[22.22048,-159.59618],[22.20004,-159.61995],[22.17556,-159.65488],[22.17511,-159.65488]] },
+  {"id":"borabora","group":"nature","name":"Bora Bora: lagoon to Matira Beach","start":"Vaitape","end":"Matira Point","traffic":"harbour","lane":"along","spread":300,
+    pts:[[-16.50095,-151.75502],[-16.52003,-151.75502],[-16.53684,-151.74794],[-16.53997,-151.74501],[-16.54245,-151.73647]] },
+  {"id":"rottnest","group":"swims","name":"Rottnest Channel: Cottesloe → Rottnest Island","start":"Cottesloe Beach","end":"Thomson Bay, Rottnest","traffic":"medium","lane":"cross","spread":3000,
+    pts:[[-31.99613,115.74989],[-31.99613,115.54684]] },
+  {"id":"tsugaru","group":"swims","name":"Tsugaru Strait: Honshu → Hokkaido","start":"Cape Tappi, Honshu","end":"Cape Shirakami, Hokkaido","traffic":"busy","lane":"cross","spread":3000,
+    pts:[[41.25829,140.3489],[41.396,140.19818]] },
+  {"id":"cook","group":"swims","name":"Cook Strait: North Island → South Island","start":"Ohau Point, North Island","end":"Perano Head, Arapawa Island","traffic":"busy","lane":"cross","spread":3000,
+    pts:[[-41.24487,174.61991],[-41.20013,174.36982]] },
+  {"id":"catalina","group":"swims","name":"Catalina Channel: Catalina Island → Los Angeles","start":"Doctors Cove, Catalina","end":"Palos Verdes","traffic":"busy","lane":"cross","spread":4000,
+    pts:[[33.44318,-118.49722],[33.73315,-118.39714]] },
+  {"id":"northchannel","group":"swims","name":"North Channel: Ireland → Scotland","start":"Donaghadee, N. Ireland","end":"Portpatrick, Scotland","traffic":"busy","lane":"cross","spread":4000,
+    pts:[[54.64518,-5.53031],[54.84209,-5.12009]] },
+  {"id":"molokai","group":"swims","name":"Molokaʻi Channel: Molokaʻi → Oʻahu","start":"Kaluakoi, Molokaʻi","end":"Sandy Beach, Oʻahu","traffic":"medium","lane":"cross","spread":4000,
+    pts:[[21.16018,-157.31008],[21.28415,-157.67242]] },
+  {"id":"robben","group":"history","name":"Cape Town → Robben Island","start":"V&A Waterfront","end":"Robben Island harbour","traffic":"busy","lane":"open","spread":1500,
+    pts:[[-33.90109,18.42191],[-33.88007,18.41499],[-33.81,18.38989]],
+    notes:[[0,"Nelson Mandela was taken across this water in 1964 and held on Robben Island for 18 years."],[0.5,"Halfway. Table Mountain is behind you; prisoners could see it from their cells."],[1,"Robben Island. Mandela walked free in 1990 and became South Africa's president in 1994."]] },
+  {"id":"dunkirk","group":"history","name":"Dunkirk 1940: the little ships home to Dover","start":"Dunkirk","end":"Dover","traffic":"busy","lane":"cross","spread":4000,
+    pts:[[51.05591,2.3637],[51.12005,1.99987],[51.10981,1.33486]],
+    notes:[[0,"May 1940: 338,000 soldiers were rescued from these beaches in nine days."],[0.3,"Around 850 \"little ships\" (fishing boats, yachts, ferries) joined the rescue."],[0.7,"The White Cliffs of Dover would have been the first sight of home."],[1,"Dover. Churchill called the rescue \"a miracle of deliverance\"."]] },
+  {"id":"dday","group":"history","name":"D-Day 1944: Portsmouth → Normandy","start":"Portsmouth","end":"Sword Beach, Normandy","traffic":"busy","lane":"open","spread":4000,
+    pts:[[50.78789,-1.10814],[50.76256,-1.06643],[50.75501,-1.04004],[50.64991,-0.90042],[49.32,-0.3]],
+    notes:[[0,"June 6, 1944: nearly 7,000 vessels set out across this water for Normandy."],[0.5,"Mid-Channel. The fleet gathered at \"Piccadilly Circus\", a meeting point south of the Isle of Wight."],[1,"Sword Beach. 156,000 troops came ashore on D-Day."]] },
+  {"id":"vikings","group":"history","name":"Vikings: Bergen → Shetland","start":"Bergen, Norway","end":"Lerwick, Shetland","traffic":"medium","lane":"open","spread":4000,
+    pts:[[60.39859,5.31498],[60.39949,5.31316],[60.40173,5.30499],[60.39904,5.21511],[60.38736,5.17153],[60.43407,5.03897],[60.45967,4.98541],[60.45698,4.95454],[60.41701,4.88554],[60.30022,4.60045],[60.1,-1.05],[60.10292,-1.07593],[60.11145,-1.10569],[60.12044,-1.12553],[60.15143,-1.13094],[60.15278,-1.13455]],
+    notes:[[0,"Viking ships sailed this way from about 800 AD to settle Shetland and Orkney."],[0.5,"Halfway across the North Sea. Vikings steered by sun, stars and the flight of birds."],[1,"Shetland was Norwegian until 1469. Lerwick still burns a Viking ship every January at Up Helly Aa."]] },
+  {"id":"shackleton","group":"history","name":"Shackleton 1916: Elephant Island → South Georgia","start":"Point Wild, Elephant Island","end":"King Haakon Bay, South Georgia","traffic":"ocean","lane":"open","spread":4000,
+    pts:[[-61.10036,-54.87074],[-60.89986,-54.50016],[-54.3,-37.6],[-54.18106,-37.41005],[-54.16022,-37.2994]],
+    notes:[[0,"April 1916: Shackleton and five men set off in the James Caird, a 7 m lifeboat, to get help."],[0.25,"The crew had to chip ice off the boat by hand so it would not capsize."],[0.5,"Halfway. Navigator Frank Worsley got only four sun sightings in the whole voyage."],[0.9,"They faced a hurricane just off South Georgia."],[1,"King Haakon Bay, after 16 days. Then they crossed the mountains on foot, and every one of the 22 men left on Elephant Island was saved."]] },
+  {"id":"columbus","group":"history","name":"Columbus 1492: La Gomera → San Salvador","start":"San Sebastián, La Gomera","end":"San Salvador, Bahamas","traffic":"ocean","lane":"open","spread":4000,
+    pts:[[28.08507,-17.1053],[27.99991,-17.14987],[27.97027,-17.40022],[28.0301,-18.35031],[24.15,-74.3],[24.12171,-74.50782],[24.10393,-74.52435],[24.06566,-74.54148],[24.06027,-74.5397]],
+    notes:[[0,"September 6, 1492: the Niña, the Pinta and the Santa María left La Gomera."],[0.5,"Halfway. The crews grew close to mutiny as weeks passed with no land."],[0.98,"October 12, 1492: Rodrigo de Triana on the Pinta shouted \"Tierra!\""],[1,"San Salvador. 33 days from La Gomera."]] },
+  {"id":"mayflower","group":"history","name":"Mayflower 1620: Plymouth → Plymouth","start":"Plymouth, England","end":"Plymouth Bay, Massachusetts","traffic":"ocean","lane":"open","spread":4000,
+    pts:[[50.36005,-4.13798],[50.30009,-4.14989],[49.90011,-5.20018],[44.5,-50],[42.05,-69.9],[42.06999,-70.05012],[42.06415,-70.12085],[42.01991,-70.18192],[41.98,-70.638]],
+    notes:[[0,"September 16, 1620: 102 passengers left Plymouth on the Mayflower."],[0.5,"Halfway. A main beam cracked in a storm and was jacked back into place with a screw."],[0.95,"November 9: land sighted, Cape Cod."],[1,"Plymouth, Massachusetts, after 66 days at sea."]] },
+  {"id":"kontiki","group":"history","name":"Kon-Tiki 1947: Peru → Polynesia","start":"Callao, Peru","end":"Raroia atoll","traffic":"ocean","lane":"open","spread":4000,
+    pts:[[-12.04475,-77.15973],[-12.05985,-77.25012],[-12.10027,-77.29972],[-16.08,-142.32]],
+    notes:[[0,"April 28, 1947: Thor Heyerdahl and five crew left Peru on a balsa-wood raft."],[0.4,"They lived on flying fish that landed on deck at night."],[0.7,"A whale shark circled the raft for hours."],[1,"Raroia, after 101 days and nearly 7,000 km."]] },
+
 ];
-const GROUPS = { quick: 'Quick (under 10 km)', medium: 'Medium (10–200 km)', long: 'Long', ocean: 'Ocean crossings' };
+const GROUPS = { city: 'City waterways', nature: 'Wild nature', quick: 'Quick crossings', medium: 'Straits & bays', swims: 'Famous swims', long: 'Long', history: 'History voyages', ocean: 'Ocean crossings' };
+
+// ---------- Boats, paint and floating treasure ----------
+const BOATS = [
+  { id: 'skiff', name: 'Wooden skiff', km: 0 },
+  { id: 'shell', name: 'Racing shell', km: 10 },
+  { id: 'ocean', name: 'Ocean rowing boat', km: 42 },
+  { id: 'viking', name: 'Viking longship', km: 100 },
+  { id: 'dragon', name: 'Dragon boat', km: 200 },
+];
+const PAINTS = [
+  { id: 'classic', name: 'Classic', cost: 0 }, { id: 'red', name: 'Fire red', c: '#c8262c', cost: 40 }, { id: 'green', name: 'Racing green', c: '#1f6b44', cost: 40 },
+  { id: 'blue', name: 'Ocean blue', c: '#1f5fa8', cost: 40 }, { id: 'purple', name: 'Royal purple', c: '#5b2a86', cost: 80 }, { id: 'yellow', name: 'Sunshine', c: '#f2c230', cost: 80 },
+  { id: 'pink', name: 'Flamingo', c: '#e05a9c', cost: 120 }, { id: 'black', name: 'Midnight', c: '#1b1e24', cost: 120 },
+  { id: 'gold', name: 'Gold', c: '#d9a92c', rough: 0.3, cost: 300 }, { id: 'glow', name: 'Glow in the dark', c: '#2ee6c8', emissive: 0.9, cost: 500 },
+];
+// w = how often it shows up; ahead = how far ahead it appears; f = how fast you must row compared with your usual pace
+const ITEMS = {
+  ring:   { name: 'Life ring', emoji: '🛟', coins: 3, w: 0.32, ahead: 80, f: 0.85, scale: 1.2 },
+  bottle: { name: 'Message in a bottle', emoji: '🍾', coins: 5, w: 0.40, ahead: 90, f: 0.9, scale: 1.1 },
+  crate:  { name: 'Floating crate', emoji: '📦', coins: 10, w: 0.20, ahead: 110, f: 0.97, scale: 1 },
+  chest:  { name: 'Treasure chest', emoji: '💰', coins: 25, w: 0.08, ahead: 140, f: 1.04, scale: 1.1 },
+};
+const EARTH_KM = 40075;
+// Messages in bottles: a fact about where you are, or about the sea in general
+const FACTS = {
+  general: [
+    'The ocean covers about 71% of the Earth.',
+    'Most of the ocean floor has never been mapped in detail.',
+    'The deepest point in the ocean, the Challenger Deep, is nearly 11,000 m down.',
+    'Blue whales are the largest animals that have ever lived.',
+    'Dolphins sleep with one half of their brain at a time.',
+    'Octopuses have three hearts and blue blood.',
+    'Sound travels about four times faster in water than in air.',
+    'About half the oxygen we breathe is made by tiny plankton in the sea.',
+    'The Pacific Ocean is bigger than all the land on Earth put together.',
+    'In 1969 John Fairfax became the first person to row alone across an ocean, the Atlantic.',
+    'The oldest message in a bottle ever found was thrown into the sea in 1886 and found in Australia in 2018.',
+    'The Gulf Stream carries more water than all the world\'s rivers combined.',
+    'Sea turtles find their way back to the beach where they hatched.',
+    'Glowing waves at night come from tiny plankton called dinoflagellates.',
+    'Albatrosses can glide for hours without flapping their wings.',
+    'Flying fish can glide up to about 200 m above the waves.',
+    'A knot is one nautical mile per hour, or 1.852 km/h.',
+    'Sailors once measured speed by letting a knotted rope run out behind the ship and counting the knots.',
+    'Most of a rowing stroke\'s power comes from the legs, not the arms.',
+  ],
+  hongkong: ['The Star Ferry has crossed Victoria Harbour since 1888.'],
+  alcatraz: ['No prisoner is known to have escaped Alcatraz alive. Three men vanished in 1962 and were never found.'],
+  liberty: ['The Statue of Liberty was a gift from France, unveiled in 1886.'],
+  bosphorus1: ['The Bosphorus is the border between Europe and Asia.'],
+  bosphorus: ['A strong surface current flows down the Bosphorus from the Black Sea.', 'The Bosphorus is the border between Europe and Asia.'],
+  oresund: ['Shakespeare set Hamlet in Kronborg Castle, at Helsingør.'],
+  dardanelles: ['Lord Byron swam across the Hellespont in 1810, to copy the legend of Leander.'],
+  messina: ['Ancient sailors feared Scylla and Charybdis, the sea monsters of this strait.'],
+  solent: ['The Solent has a double high tide, which helped make Southampton a great port.'],
+  sydney: ['The Sydney Opera House roof is covered with over a million tiles.'],
+  princes: ['There are no private cars on the Princes\' Islands. People walk, cycle or take electric carts.'],
+  capri: ['Capri\'s Blue Grotto glows because sunlight comes in through an opening under the water.'],
+  channel: ['Matthew Webb was the first to swim the English Channel, in 1875. It took him under 22 hours.'],
+  gibraltar: ['Only about 14 km of sea separates Europe from Africa here.'],
+  florida: ['Ernest Hemingway lived and wrote in Key West in the 1930s.'],
+  atlantic: ['Crews in the Atlantic rowing race from La Gomera to Antigua usually take one to two months.'],
+  pacific: ['Magellan named the Pacific the "peaceful sea" in 1520.'],
+  indian: ['Mauritius was home to the dodo, which died out in the late 1600s.'],
+  thames: ['Tower Bridge opens about 800 times a year to let tall ships through.', 'The Thames is tidal in London. It rises and falls up to 7 m twice a day.'],
+  venice: ['Murano has been making glass since 1291.', 'Venice is built on more than 100 small islands.'],
+  stockholm: ['Stockholm is built on 14 islands.'],
+  hudson: ['In 2009 Captain Sully landed a plane on the Hudson, and all 155 people on board survived.'],
+  goldengate: ['The Golden Gate Bridge\'s colour is called International Orange.'],
+  sydneybridge: ['Sydneysiders call the Harbour Bridge "the Coathanger".'],
+  goldenhorn: ['In 1453 the Ottomans dragged ships over the hills to get into the Golden Horn.'],
+  rio: ['The Sugarloaf cable car opened in 1912.'],
+  monaco: ['Monaco is the second-smallest country in the world.'],
+  dubrovnik: ['Dubrovnik\'s Old Town was King\'s Landing in Game of Thrones.'],
+  amalfi: ['Around the year 1000, Amalfi was a powerful sea republic.'],
+  halong: ['Ha Long means "descending dragon".'],
+  whitsunday: ['Whitehaven Beach\'s sand is about 98% pure silica, so it stays cool underfoot.'],
+  greenisland: ['The Great Barrier Reef is the largest structure on Earth built by living things.'],
+  milford: ['Milford Sound is not really a sound but a fjord, carved by glaciers.'],
+  geiranger: ['The Seven Sisters waterfall pours down the side of Geirangerfjord.'],
+  santorini: ['Santorini\'s bay is the crater of a huge eruption about 3,600 years ago.'],
+  phiphi: ['Maya Bay was the setting of the film The Beach (2000).'],
+  napali: ['Much of the Nā Pali Coast can only be reached by boat or on foot.'],
+  borabora: ['Mount Otemanu, Bora Bora\'s peak, is what is left of an old volcano.'],
+  rottnest: ['Rottnest Island is home to the quokka, often called the happiest animal in the world.'],
+  tsugaru: ['The Seikan railway tunnel runs under this strait.'],
+  cook: ['Cook Strait is named after Captain James Cook, who sailed through it in 1770.'],
+  catalina: ['The first Catalina Channel swim was in 1927, by 17-year-old George Young.'],
+  northchannel: ['The North Channel is known for cold water and lion\'s mane jellyfish.'],
+  molokai: ['Hawaiians call this channel Kaʻiwi, "the bone".'],
+};
+
 
 // ---------- Geo math ----------
 const R = 6371008.8, rad = d => d * Math.PI / 180, deg = r => r * 180 / Math.PI;
@@ -769,12 +1152,16 @@ const ftIn = cm => { const i = Math.round(cm / 2.54); return Math.floor(i / 12) 
 // ---------- Saved state (this browser) ----------
 const KEY = 'oceanrow.v1';
 const DEFAULT_KEY = 'AIzaSyDnn7_FE7u1UXWm3TBK7ifVVoCL-9YpIog';
-let save = { route: 'hongkong', units: 'km', voyages: {}, gkey: DEFAULT_KEY, heightCm: 0, hdgSign: 1, sound: true, vol: 0.7, voice: true, windOn: true };
+let save = { route: 'hongkong', units: 'km', voyages: {}, gkey: DEFAULT_KEY, heightCm: 0, hdgSign: 1, sound: true, vol: 0.7, voice: true, windOn: true,
+  boat: 'skiff', paint: 'classic', paints: ['classic'], coins: 0, found: {}, lifetime: null };
 try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.voyages) save = Object.assign(save, s); } catch (_) {}
 const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (_) {} };
 const voyage = id => (save.voyages[id] ||= { meters: 0, sessions: [], finished: null });
 units = UNITS[save.units] ? save.units : 'km';
 if (!save.gkey) save.gkey = DEFAULT_KEY;
+if (save.lifetime == null) save.lifetime = Object.values(save.voyages).reduce((t, v) => t + (v.meters || 0), 0);   // count rowing done before boats existed
+const boatUnlocked = b => save.lifetime >= b.km * 1000;
+if (!BOATS.some(b => b.id === save.boat && boatUnlocked(b))) save.boat = 'skiff';
 
 // ---------- Height adjustment ----------
 // A rowing monitor measures the flywheel the same way for everyone, so a shorter
@@ -861,6 +1248,7 @@ function startSession(kind) {
   source = kind; lastDevDist = null;
   Object.assign(sess, { active: true, paused: false, meters: 0, secs: 0, logIdx: -1 });
   splitNext = 500; splitAt = 0; Object.assign(life, { base: 0, baseT: 0, push: 0, quiet: 0 });
+  if (typeof loot !== 'undefined') resetLoot();
   $('btnPause').disabled = false;
   try { navigator.wakeLock?.request('screen').then(l => wakeLock = l).catch(() => {}); } catch (_) {}
 }
@@ -886,6 +1274,8 @@ function addMeters(rawM) {
     return;
   }
   sess.meters += dm;
+  const lb = save.lifetime; save.lifetime += dm;
+  for (const b of BOATS) if (b.km && lb < b.km * 1000 && save.lifetime >= b.km * 1000) { toast(`🎉 New boat unlocked: ${b.name}! Pick it in "Boats & treasure".`, 9000, `New boat unlocked: ${b.name}!`); renderGarage(); }
   const v = voyage(save.route);
   if (v.finished) return;
   const before = v.meters;
@@ -901,6 +1291,7 @@ function addMeters(rawM) {
 function checkMilestones(before, after) {
   const pb = before / path.total, pa = after / path.total;
   for (const q of [0.1, 0.25, 0.5, 0.75, 0.9]) if (pb < q && pa >= q) toast(q === 0.5 ? '⛵ Halfway there!' : `🏁 ${Math.round(q * 100)}% of the voyage done!`, 6000, q === 0.5 ? 'Halfway there!' : `${Math.round(q * 100)} percent of the voyage done.`);
+  for (const [f, text] of route().notes || []) if (f === 0 ? before <= 0 && after > 0 : pb < f && pa >= f) toast('📜 ' + text, 10000, text);
   const left = path.total - after;
   for (const km of [50, 10, 1]) if (path.total > km * 3000 && path.total - before > km * 1000 && left <= km * 1000) toast(`🏝️ ${km} km to ${route().end}! Look for land ahead.`, 6000, `${km} kilometer${km > 1 ? 's' : ''} to ${route().end}.`);
   const a = posAt(path, before).p, b = posAt(path, after).p;
@@ -908,8 +1299,18 @@ function checkMilestones(before, after) {
   for (const [lat, name] of [[23.4365, 'Tropic of Cancer'], [-23.4365, 'Tropic of Capricorn']]) if ((a[0] - lat) * (b[0] - lat) < 0) toast(`☀️ You crossed the ${name}!`);
   if (path.total > 100000 && Math.floor(a[1] / 5) !== Math.floor(b[1] / 5)) { const L = Math.round(b[1] / 5) * 5; toast(`🧭 Now at ${Math.abs(L)}°${L < 0 ? 'W' : L > 0 ? 'E' : ''} longitude`); }
 }
-let toastT;
-function toast(t, ms = 6000, say) { if (say) sfx.say(say); const el = $('toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), ms); }
+// Messages queue up, so one never wipes out another before you could read it
+let toastT, toastQ = [], toastBusy = 0;
+function toast(t, ms = 6000, say) {
+  if (performance.now() < toastBusy) { if (toastQ.length < 5 && !toastQ.some(q => q[0] === t)) toastQ.push([t, ms, say]); return; }
+  showToast(t, ms, say);
+}
+function showToast(t, ms, say) {
+  if (say) sfx.say(say); const el = $('toast'); el.textContent = t; el.classList.add('show');
+  const hold = Math.min(ms, 3500 + t.length * 25); toastBusy = performance.now() + hold;
+  clearTimeout(toastT); toastT = setTimeout(() => { el.classList.remove('show'); }, ms);
+  setTimeout(() => { if (performance.now() >= toastBusy - 30) { const q = toastQ.shift(); if (q) setTimeout(() => showToast(...q), 450); } }, hold);
+}
 
 // ---------- Simulator ----------
 const sim = { times: [], power: 0 };
@@ -1031,8 +1432,8 @@ function buildMini() {
 let miniCheck = 0;
 function fitMini() {
   if (!mini) return; miniAutoZoom = true;
-  if (path.total < 60000) { const b = new CORE.LatLngBounds(); path.line.forEach(p => b.extend({ lat: p[0], lng: p[1] })); mini.fitBounds(b, 20); }
-  else { const p = posAt(path, Math.min(dispMeters, path.total)).p; mini.setCenter({ lat: p[0], lng: p[1] }); mini.setZoom(path.total < 300000 ? 8 : 6); }
+  const p = posAt(path, Math.min(dispMeters, path.total)).p; mini.setCenter({ lat: p[0], lng: p[1] });
+  mini.setZoom(path.total < 20000 ? 14 : path.total < 60000 ? 12 : path.total < 300000 ? 9 : 7);
   setTimeout(() => miniAutoZoom = false, 800);
 }
 function updateMini(pos, idx, hdg) {
@@ -1047,8 +1448,7 @@ function updateMini(pos, idx, hdg) {
     if (performance.now() - bigTouchedAt > 10000) big.panTo(ll);
   }
   if (performance.now() - miniTouchedAt > 15000) {
-    if (path.total >= 60000) { mini.panTo(ll); if ((mini.getZoom?.() ?? 6) < 4) mini.setZoom(6); }
-    else if (++miniCheck % 20 === 0) { const b = mini.getBounds?.(); if (!b || !b.contains(ll) || (mini.getZoom?.() ?? 12) < 9) fitMini(); }
+    mini.panTo(ll);   // the map follows the boat (drag or zoom it to look around; it comes back after 15 s)
   }
 }
 
@@ -1057,11 +1457,11 @@ const URLS = {}, POSES = 13;   // rower drawn in 13 positions through the stroke
 const SEA_STYLE = { harbour: { amp: 0.22, color: '#3d8c96' }, busy: { amp: 0.5, color: '#317b93' }, medium: { amp: 0.65, color: '#2d81a1' }, ocean: { amp: 1.0, color: '#24719b' } };
 // calm water: let more of Google's real water show through; rough water: more of our waves
 const seaAlpha = amp => 0.5 + 0.35 * Math.min(1, amp / 1.2);
-let builtSeaFor = '', builtRowerFor = 0;
+let builtSeaFor = '', builtRowerFor = 0, builtBoatFor = '', boatInfo = { sink: 0, lights: [] };
 async function buildModels() {
   const t = performance.now();
   if (!URLS.boat) {
-    URLS.boat = MODELS.toDataURL(MODELS.rowBoat());
+    for (const k in MODELS.ITEM_MODELS) URLS['item_' + k] = MODELS.toDataURL(MODELS.ITEM_MODELS[k]());
     URLS.oarS = MODELS.toDataURL(MODELS.oar(1)); URLS.oarP = MODELS.toDataURL(MODELS.oar(-1));
     URLS.gull = Array.from({ length: 5 }, (_, f) => MODELS.toDataURL(MODELS.bird('gull', f))); URLS.alb = Array.from({ length: 5 }, (_, f) => MODELS.toDataURL(MODELS.bird('albatross', f)));
     URLS.oarSF = MODELS.toDataURL(MODELS.oar(1, true)); URLS.oarPF = MODELS.toDataURL(MODELS.oar(-1, true));
@@ -1072,6 +1472,9 @@ async function buildModels() {
     URLS.dolphin = MODELS.toDataURL(MODELS.dolphin()); URLS.whale = MODELS.toDataURL(MODELS.whale()); URLS.spout = MODELS.toDataURL(MODELS.spout());
     URLS.turtle = MODELS.toDataURL(MODELS.turtle()); URLS.shark = MODELS.toDataURL(MODELS.shark()); URLS.seal = MODELS.toDataURL(MODELS.seal());
   }
+  const bkey = save.boat + ':' + save.paint;
+  if (builtBoatFor !== bkey) { const pt = PAINTS.find(p => p.id === save.paint); const b = MODELS.boatModel(save.boat, pt && pt.c ? pt : null);
+    URLS.boat = MODELS.toDataURL(b.glb); boatInfo = { sink: b.sink, lights: b.lights }; SHIP_LIGHTS.boat = b.lights; builtBoatFor = bkey; }
   const h = save.heightCm || 175;
   if (builtRowerFor !== h) { URLS.rowers = Array.from({ length: POSES }, (_, i) => MODELS.toDataURL(MODELS.rowerPose(h / 100, i / (POSES - 1)))); builtRowerFor = h; }
   const tr = route().traffic;
@@ -1127,11 +1530,13 @@ function buildSceneInner() {
   crit.list.forEach(endEvent); crit.list = [];
   for (const el of active.values()) el.remove(); active.clear(); despawnPod(); despawnWhale(); life.dolphins = life.whale = false;
   if (boat) Object.values(boat).flat().forEach(el => el.remove());
+  if (loot.item) { loot.item.el?.remove(); loot.item.el = null; }
   if (seaEl) seaEl.remove();
   seaEl = model(URLS.sea); seaRef = null;
   boat = { hull: model(URLS.boat), rowers: URLS.rowers.map(u => model(u, { scale: 0.0001 })), oarS: model(URLS.oarS), oarP: model(URLS.oarP), oarSF: model(URLS.oarSF, { scale: 0.0001 }), oarPF: model(URLS.oarPF, { scale: 0.0001 }) };
   buildTraffic();
 }
+async function rebuildBoat() { await buildModels(); if (boat) boat.hull.src = URLS.boat; }
 async function rebuildRower() { if (!boat) return; await buildModels(); boat.rowers.forEach((el, i) => el.src = URLS.rowers[i]); }
 const show = (el, on) => { if (el._on !== on) { el.scale = on ? 1 : 0.0001; el._on = on; } };
 
@@ -1174,11 +1579,11 @@ function updateScene(dt, now, at) {
   const hdg = at.hdg, pose = strokePose(dt, now);
   setPose(boat.hull, at.p, bob, hdg, tl);
   const sH = (save.heightCm || 175) / 175, pi = Math.round(pose.u * (POSES - 1)), uq = pi / (POSES - 1);
-  boat.rowers.forEach((el, i) => { if (i === pi) setPose(el, offset(at.p, hdg, MODELS.SEAT.y + MODELS.strokeAt(uq).slide * sH, 0), bob + MODELS.SEAT.z, hdg, tl); show(el, i === pi); });
+  boat.rowers.forEach((el, i) => { if (i === pi) setPose(el, offset(at.p, hdg, MODELS.SEAT.y + MODELS.strokeAt(uq).slide * sH, 0), bob + MODELS.SEAT.z - boatInfo.sink, hdg, tl); show(el, i === pi); });
   lastSweep = pose.sweep;
   const [oS, oP] = pose.feather ? [boat.oarSF, boat.oarPF] : [boat.oarS, boat.oarP], [hS, hP] = pose.feather ? [boat.oarS, boat.oarP] : [boat.oarSF, boat.oarPF];
-  setPose(oS, offset(at.p, hdg, MODELS.PIN.y, MODELS.PIN.x), bob + MODELS.PIN.z, hdg - pose.sweep); show(oS, true); show(hS, false);
-  setPose(oP, offset(at.p, hdg, MODELS.PIN.y, -MODELS.PIN.x), bob + MODELS.PIN.z, hdg + pose.sweep); show(oP, true); show(hP, false);
+  setPose(oS, offset(at.p, hdg, MODELS.PIN.y, MODELS.PIN.x), bob + MODELS.PIN.z - boatInfo.sink, hdg - pose.sweep); show(oS, true); show(hS, false);
+  setPose(oP, offset(at.p, hdg, MODELS.PIN.y, -MODELS.PIN.x), bob + MODELS.PIN.z - boatInfo.sink, hdg + pose.sweep); show(oP, true); show(hP, false);
   updateLifeModels(dt, at, lift);
   // Ships within 12 km
   if ((shipT += dt) > 0.2) {
@@ -1325,7 +1730,7 @@ function projector() {
 }
 const LC = { W: '255,248,225', R: '255,70,60', G: '70,255,140', A: '255,190,90' };
 const SHIP_LIGHTS = {
-  boat: [[0, -3.3, 2.95, 'W', 1], [0, -2.0, 1.1, 'A', .6], [0, -2.9, 1.1, 'A', .6]],
+  boat: [],
   cargo0: [[0, 30, 38, 'W', 1.6], [0, -55, 46, 'W', 1.6], [-12.5, -49.5, 26, 'R', 1.4], [12.5, -49.5, 26, 'G', 1.4], [0, -75, 12, 'W', 1], ...[-8, -5, -2, 1, 4, 7].map(x => [x, -47.8, 23.5, 'A', .7]), [10, 10, 21, 'W', .8], [-10, 30, 21, 'W', .8]],
   tanker: [[0, 60, 30, 'W', 1.6], [0, -90, 40, 'W', 1.6], [-13, -80, 24, 'R', 1.4], [13, -80, 24, 'G', 1.4], ...[-10, -6, -2, 2, 6, 10].map(x => [x, -77.8, 26.5, 'A', .7]), [0, 20, 12, 'W', .9]],
   ferry: [[0, 10, 17, 'W', 1.3], [-7, -20, 13, 'R', 1.1], [7, -20, 13, 'G', 1.1], ...[0, 1, 2].flatMap(k => [-26, -20, -14, -8, -2, 4, 10, 16].filter(y => y < 24 - k * 7).flatMap(y => [[-(6.65 - k * .6), y, 6 + k * 2.8, 'A', .55], [6.65 - k * .6, y, 6 + k * 2.8, 'A', .55]]))],
@@ -1362,6 +1767,7 @@ function drawFX(now, at) {
   drawMoonPath(g, P, at);
   drawParticles(g, P);
   drawCritters(g, P, at, now);
+  drawLoot(g, P);
   // --- lights on ships and your boat ---
   if (darkness > 0.25 && boat) {
     const li = Math.min(1, (darkness - 0.25) / 0.5);
@@ -1466,6 +1872,9 @@ const sfx = (() => {
     bark() { if (!ready()) return; for (let i = 0; i < 3; i++) setTimeout(() => { if (!ready()) return; burst('bandpass', 700, 3, 0.25, 0.02, 0.18); tone('square', 320, 220, 0.05, 0.02, 0.16); }, i * 260); },
     blow() { if (!ready()) return; burst('lowpass', 900, 0.5, 0.3, 0.05, 1.3, 0.8); burst('bandpass', 2400, 0.7, 0.06, 0.08, 1.0); },
     thunder() { if (!ready()) return; burst('lowpass', 140, 0.5, 0.6, 0.08, 3.2, 0.35); setTimeout(() => ready() && burst('lowpass', 90, 0.5, 0.45, 0.3, 2.2, 0.3), 400); },
+    coin() { if (!ready()) return; const at = t0(); tone('square', 988, 988, 0.05, 0.005, 0.08, at); tone('square', 1319, 1319, 0.05, 0.005, 0.4, at + 0.08); },
+    treasure() { if (!ready()) return; const at = t0(); [523, 659, 784, 1047].forEach((f, i) => tone('triangle', f, f, 0.09, 0.01, 0.5, at + i * 0.11)); },
+    ding() { if (!ready()) return; tone('sine', 1568, 1560, 0.05, 0.01, 0.7); tone('sine', 2350, 2340, 0.02, 0.01, 0.5); },
     say(text) { if (!save.voice || !save.sound || !('speechSynthesis' in window)) return; try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.rate = 1.0; u.volume = Math.min(1, save.vol + 0.2); speechSynthesis.speak(u); } catch (_) {} },
   };
 })();
@@ -2181,7 +2590,7 @@ function selectRoute(id) {
   save.route = id; persist(); path = buildPath(route().pts); miniTouchedAt = -1e9;
   wx.here = wx.byRoute[id] || null; seaAmp = null; safe('weather', () => { renderWxNow(); if (wx.here) applySeaState(); });
   if (source === 'sim') sess.meters = 0;
-  dispMeters = currentMeters(); rowingFor = 0;
+  dispMeters = currentMeters(); rowingFor = 0; resetLoot();
   if (map3d) buildModels().catch(e => console.log('[ocean-row] models', e)).finally(buildScene); else buildScene();
 }
 
@@ -2207,7 +2616,7 @@ $('btnPause').onclick = () => { sess.paused = !sess.paused; $('btnPause').textCo
 $('btnReset').onclick = () => { if (!confirm(`Restart "${route().name}" from the beginning?`)) return; save.voyages[save.route] = { meters: 0, sessions: [], finished: null }; sess.logIdx = -1; persist(); dispMeters = 0; };
 $('btnExport').onclick = () => { const a = document.createElement('a'); const { gkey, ...data } = save; a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })); a.download = `ocean-row-backup-${new Date().toISOString().slice(0, 10)}.json`; a.click(); };
 $('btnImport').onclick = () => $('fileImport').click();
-$('fileImport').onchange = async e => { try { const s = JSON.parse(await e.target.files[0].text()); if (!s.voyages) throw 0; save = Object.assign(save, s); persist(); fillRouteSelect(); fillHeight(); selectRoute(save.route); setStatus('Progress restored.', 'ok'); } catch (_) { setStatus('That file is not an Ocean Row backup.', 'err'); } };
+$('fileImport').onchange = async e => { try { const s = JSON.parse(await e.target.files[0].text()); if (!s.voyages) throw 0; save = Object.assign(save, s); persist(); fillRouteSelect(); fillHeight(); renderGarage(); selectRoute(save.route); rebuildBoat().catch(() => {}); setStatus('Progress restored.', 'ok'); } catch (_) { setStatus('That file is not an Ocean Row backup.', 'err'); } };
 $('btnKey').onclick = () => showSetup();
 $('btnSaveKey').onclick = () => {
   const k = $('keyInput').value.trim();
@@ -2223,6 +2632,121 @@ addEventListener('keydown', e => {
   if (views[e.code]) setCam(views[e.code]);
   if (e.code === 'Digit0') setCam(null);
   if (e.code === 'KeyH') { save.hdgSign *= -1; persist(); toast('Boat direction flipped (press H again to undo)', 3000); }   // fix if boats point the wrong way
+});
+
+
+// =====================================================================
+// FLOATING TREASURE: something floats up ahead now and then. Reach it
+// before it drifts away and you collect coins for boat paint.
+// =====================================================================
+const loot = { item: null, nextAt: 0, factI: 0 };
+function resetLoot(first = 150) { if (loot.item) loot.item.el?.remove(); loot.item = null; loot.nextAt = dispMeters + first; $('goal').style.display = 'none'; }
+function pickItem() { let x = Math.random(); for (const [k, I] of Object.entries(ITEMS)) { if ((x -= I.w) <= 0) return k; } return 'bottle'; }
+function pickFact() {          // a fact about this place when there is one left, otherwise about the sea
+  const seen = loot.seen ||= new Set(), fresh = a => a.filter(t => !seen.has(t));
+  let pool = fresh(FACTS[route().id] || []);
+  if (!pool.length || Math.random() < 0.35) pool = pool.concat(fresh(FACTS.general));
+  if (!pool.length) { seen.clear(); pool = FACTS.general; }
+  const f = pool[Math.floor(Math.random() * pool.length)]; seen.add(f); return f;
+}
+function updateLoot(dt, at, sp, simX) {
+  const it = loot.item;
+  if (!it) {
+    if (!sess.active || sess.paused || sp < 0.5 || dispMeters < loot.nextAt || dispMeters > path.total - 250) return;
+    const kind = pickItem(), I = ITEMS[kind], usual = life.baseT > 30 ? life.base : Math.max(sp, 1.6);
+    const limit = Math.max(15, I.ahead / (usual * I.f));
+    loot.item = { kind, d: dispMeters + I.ahead, side: (Math.random() < 0.5 ? -1 : 1) * (1.5 + Math.random() * 0.8), left: limit, gone: 0, spin: Math.random() * 360,
+      el: map3d && P3?.Model3DElement && URLS['item_' + kind] ? model(URLS['item_' + kind], { scale: I.scale }) : null };
+    toast(`${I.emoji} ${I.name} ${I.ahead} m ahead! Reach it within ${fmtTime(limit)}`, 4500); sfx.ding();
+    return;
+  }
+  const I = ITEMS[it.kind], q = posAt(path, Math.min(it.d, path.total)), p = offset(q.p, q.hdg, 0, it.side + Math.sin(clock * 0.4) * 0.3);
+  it.spin += dt * 6;
+  if (it.gone) {                                           // drifting off and sinking
+    it.gone += dt; it.side += Math.sign(it.side) * dt * 1.5;
+    if (it.el) { it.el.position = { lat: p[0], lng: p[1], altitude: lastLift - it.gone * 0.6 }; }
+    if (it.gone > 2.5) { it.el?.remove(); loot.item = null; }
+    return;
+  }
+  it.left -= dt * simX;
+  const dist = it.d - dispMeters;
+  if (it.el) {
+    const bobZ = lastLift + 0.12 * Math.sin(clock * 1.7) - (it.kind === 'crate' ? 0.15 : it.kind === 'chest' ? 0.1 : 0);
+    it.el.position = { lat: p[0], lng: p[1], altitude: bobZ };
+    it.el.orientation = { heading: ((it.spin * save.hdgSign) % 360 + 360) % 360, tilt: 4 * Math.sin(clock * 1.3), roll: 0 };
+  }
+  it.p = p;
+  const g = $('goal'); g.style.display = '';
+  g.textContent = `${I.emoji} ${Math.max(0, Math.round(dist))} m · ${fmtTime(it.left)}`; g.className = it.left < 8 ? 'hurry' : '';
+  if (dist <= 1.5) return collectItem(it, p);
+  if (it.left <= 0) {
+    it.gone = 0.001; g.style.display = 'none';
+    toast(`${I.emoji} The ${I.name.toLowerCase()} drifted away. Row a little faster for the next one!`, 4000);
+    loot.nextAt = dispMeters + 200 + Math.random() * 250;
+  }
+}
+function collectItem(it, p) {
+  const I = ITEMS[it.kind], real = source === 'ble';
+  if (real) { save.coins += I.coins; save.found[it.kind] = (save.found[it.kind] || 0) + 1; persist(); }
+  if (it.kind === 'chest') sfx.treasure(); else sfx.coin();
+  emit(p, lastLift + 0.4, 26, { kind: 'spray', col: '255,214,90', up: 2.4, speed: 1.4, life: 1.2, size: 1.4 });
+  if (darkness > 0.45) emit(p, lastLift + 0.2, 20, { kind: 'glow', col: '255,214,120', speed: 0.6 });
+  let msg = `${I.emoji} +${I.coins} coins!`;
+  if (it.kind === 'bottle') msg = `🍾 +${I.coins} coins. The message says: "${pickFact()}"`;
+  if (it.kind === 'chest') msg = `💰 Treasure! +${I.coins} coins!`;
+  if (!real) msg += ' (simulator: not saved)';
+  toast(msg, it.kind === 'bottle' ? 11000 : 4500, it.kind === 'chest' ? 'Treasure!' : null);
+  it.el?.remove(); loot.item = null; $('goal').style.display = 'none';
+  loot.nextAt = dispMeters + 250 + Math.random() * 350;
+  renderGarage();
+}
+function drawLoot(g, P) {
+  const it = loot.item; if (!it || it.gone || !it.p) return;
+  const s = P.point(it.p[0], it.p[1], lastLift + 1.6); if (!s || !okNum(s[0], s[1])) return;
+  if (s[2] < 12 || s[0] < -40 || s[0] > P.W + 40 || s[1] < -40 || s[1] > P.H + 40) return;
+  const pulse = 0.5 + 0.5 * Math.sin(clock * 4), r = Math.max(6, Math.min(16, 260 / s[2]));
+  g.globalCompositeOperation = 'lighter';
+  const grd = g.createRadialGradient(s[0], s[1] + r * 1.6, 0, s[0], s[1] + r * 1.6, r * 2.6);
+  grd.addColorStop(0, `rgba(255,214,90,${0.35 + 0.25 * pulse})`); grd.addColorStop(1, 'rgba(255,214,90,0)');
+  g.fillStyle = grd; g.fillRect(s[0] - r * 3, s[1] - r, r * 6, r * 6);
+  g.globalCompositeOperation = 'source-over';
+  const y = s[1] - r * (1.2 + 0.4 * pulse);                     // bouncing arrow pointing at it
+  g.fillStyle = 'rgba(255,214,90,.95)'; g.strokeStyle = 'rgba(40,24,0,.6)'; g.lineWidth = 1.5;
+  g.beginPath(); g.moveTo(s[0], y + r); g.lineTo(s[0] - r * 0.7, y); g.lineTo(s[0] - r * 0.25, y); g.lineTo(s[0] - r * 0.25, y - r * 0.8); g.lineTo(s[0] + r * 0.25, y - r * 0.8); g.lineTo(s[0] + r * 0.25, y); g.lineTo(s[0] + r * 0.7, y); g.closePath(); g.fill(); g.stroke();
+}
+
+// ---------- Boats & treasure panel ----------
+function renderGarage() {
+  if (!$('boatGrid')) return;
+  const km = save.lifetime / 1000;
+  $('coinTag').textContent = `· 🪙 ${save.coins}`;
+  $('lifeLine').innerHTML = `Rowed in total: <b>${fmtDist(save.lifetime)}</b> · around the world: ${(km / EARTH_KM * 100).toFixed(km < 400 ? 2 : 1)}% of ${fmtDist(EARTH_KM * 1000, 0)}<br>Only real rowing on your rower counts. Coins come from treasure you reach in time.`;
+  $('boatGrid').innerHTML = BOATS.map(b => {
+    const open = boatUnlocked(b), sel = save.boat === b.id;
+    return `<button data-boat="${b.id}" class="${sel ? 'sel' : ''} ${open ? '' : 'locked'}">${open ? '' : '🔒 '}${b.name}<br><small>${sel ? 'in use' : open ? 'tap to use' : `at ${fmtDist(b.km * 1000, 0)} · ${fmtDist(b.km * 1000 - save.lifetime, 1)} to go`}</small></button>`;
+  }).join('');
+  $('paintGrid').innerHTML = PAINTS.map(pt => {
+    const own = save.paints.includes(pt.id), sel = save.paint === pt.id;
+    return `<button data-paint="${pt.id}" class="${sel ? 'sel' : ''} ${own || save.coins >= pt.cost ? '' : 'locked'}"><span class="sw" style="background:${pt.c || 'linear-gradient(135deg,#8a5a32 50%,#2f6f8f 50%)'}"></span>${pt.name}<br><small>${sel ? 'on your boat' : own ? 'tap to use' : '🪙 ' + pt.cost}</small></button>`;
+  }).join('');
+  const f = save.found, n = Object.values(f).reduce((a, b) => a + b, 0);
+  $('foundLine').textContent = n ? 'Found so far: ' + Object.entries(ITEMS).filter(([k]) => f[k]).map(([k, I]) => `${I.emoji} ${f[k]}`).join('  ') : 'Nothing found yet. Watch for things floating ahead while you row.';
+}
+$('garage').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.boat) {
+    const bt = BOATS.find(x => x.id === b.dataset.boat);
+    if (!boatUnlocked(bt)) { setStatus(`Row ${fmtDist(bt.km * 1000 - save.lifetime, 1)} more on your rower to unlock the ${bt.name}.`); return; }
+    save.boat = bt.id; persist(); renderGarage(); rebuildBoat().catch(err => console.log(err));
+  }
+  if (b.dataset.paint) {
+    const pt = PAINTS.find(x => x.id === b.dataset.paint);
+    if (!save.paints.includes(pt.id)) {
+      if (save.coins < pt.cost) { setStatus(`${pt.name} costs ${pt.cost} coins. You need ${pt.cost - save.coins} more.`); return; }
+      save.coins -= pt.cost; save.paints.push(pt.id); toast(`🎨 You bought ${pt.name} paint!`, 3500);
+    }
+    save.paint = pt.id; persist(); renderGarage(); rebuildBoat().catch(err => console.log(err));
+  }
 });
 
 // ---------- Main loop ----------
@@ -2259,6 +2783,7 @@ function loop(now) {
   safe('particles', () => updateParticles(dt));
   safe('sea', () => updateSea(dt, at, sp));
   safe('wildlife', () => updateCritters(dt, at, sp));
+  safe('treasure', () => updateLoot(dt, at, sp, simX));
   if (map3d) safe('3D scene', () => updateScene(dt, now, at));
   safe('effects', () => drawFX(now, at));
   if ((audioT += dt) > 0.2) { safe('sound', () => updateAudio(audioT, at)); audioT = 0; }
@@ -2270,7 +2795,7 @@ addEventListener('beforeunload', persist);
 addEventListener('visibilitychange', () => { if (document.hidden) persist(); });
 
 // ---------- Start ----------
-fillRouteSelect(); fillHeight();
+fillRouteSelect(); fillHeight(); renderGarage();
 refreshWeather(); setInterval(refreshWeather, 10 * 60 * 1000);
 if (location.protocol.startsWith('http')) connectBridge(false);
 if (save.gkey) { loadGoogle(save.gkey); initGoogle(); } else showSetup();
