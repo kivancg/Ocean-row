@@ -1,0 +1,2243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ocean Row</title>
+<style>
+  :root { --bg:#07131f; --panel:#0c1d2e; --line:#1d3850; --fg:#e8f2fb; --muted:#8aa6bf; --accent:#ff9f43; --good:#4cd98a; --bad:#ff6b6b; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--fg); font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; overflow:hidden; }
+  #app { display:flex; height:100vh; height:100dvh; }
+  #view { flex:1; min-width:0; position:relative; background:#0a2740; }
+  #view gmp-map-3d { position:absolute; inset:0; width:100%; height:100%; }
+  #panel { width:380px; background:var(--panel); border-left:1px solid var(--line); display:flex; flex-direction:column; padding:14px; gap:10px; overflow-y:auto; }
+  @media (max-width: 800px) {
+    html,body { overflow:auto; }
+    #app { flex-direction:column; height:auto; }
+    #view { flex:none; height:60vh; }
+    #panel { width:auto; border-left:0; border-top:1px solid var(--line); overflow:visible; }
+    #mini { height:260px; flex:none !important; }
+  }
+  h1 { font-size:18px; margin:0; }
+  select, button, input { font:inherit; color:var(--fg); }
+  select, input[type=text] { width:100%; padding:8px 10px; border-radius:9px; border:1px solid var(--line); background:#102a42; }
+  button { padding:9px 12px; border-radius:9px; border:1px solid var(--line); background:#123250; cursor:pointer; font-weight:600; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#1d0f00; }
+  button:disabled { opacity:.5; cursor:default; }
+  .row { display:flex; gap:8px; } .row > * { flex:1 1 auto; }
+  .label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
+  .big { font-size:28px; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.1; }
+  .big small { font-size:14px; color:var(--muted); font-weight:500; }
+  .bar { height:9px; background:#0a2235; border-radius:6px; overflow:hidden; margin:6px 0 4px; }
+  .bar > div { height:100%; background:linear-gradient(90deg,#ff7e3f,var(--accent)); width:0; transition:width .5s; }
+  .muted { color:var(--muted); font-size:13px; line-height:1.4; }
+  #pos { font-size:17px; font-weight:600; font-variant-numeric:tabular-nums; }
+  #mini { flex:1 0 180px; min-height:180px; border-radius:12px; overflow:hidden; border:1px solid var(--line); background:#0a2740; }
+  #status { font-size:13px; color:var(--muted); min-height:17px; }
+  #status.ok { color:var(--good); } #status.err { color:var(--bad); }
+  details { font-size:13px; color:var(--muted); } summary { cursor:pointer; padding:4px 0; }
+  details .row { margin-top:8px; }
+  .log div { display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #132c43; }
+  .set { display:flex; gap:8px; align-items:center; margin-top:8px; } .set > span { flex:0 0 auto; min-width:110px; } .set > select { flex:1; }
+  #heightNote { margin:6px 0 0; }
+
+  #hud { position:absolute; left:12px; right:12px; bottom:34px; display:flex; gap:10px; flex-wrap:wrap; pointer-events:none; z-index:5; }
+  .tile { background:rgba(7,19,31,.78); backdrop-filter:blur(6px); border-radius:12px; padding:8px 14px; min-width:110px; text-align:center; flex:1 1 110px; }
+  .tile b { display:block; font-size:clamp(24px,3.4vw,42px); font-variant-numeric:tabular-nums; line-height:1.1; }
+  .tile span { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
+  #camLabel { position:absolute; left:12px; top:12px; z-index:5; background:rgba(7,19,31,.7); padding:5px 10px; border-radius:8px; font-size:12px; color:var(--muted); pointer-events:none; }
+  #toast { position:absolute; left:50%; top:14px; transform:translateX(-50%) translateY(calc(-100% - 40px)); background:rgba(12,29,46,.95); border:1px solid var(--accent);
+           padding:12px 18px; border-radius:12px; z-index:6; max-width:calc(100% - 32px); transition:transform .4s; font-size:18px; font-weight:600; text-align:center; }
+  #toast.show { transform:translateX(-50%) translateY(0); }
+
+  #setup { position:fixed; inset:0; z-index:50; background:rgba(4,10,18,.92); display:flex; align-items:center; justify-content:center; padding:16px; overflow:auto; }
+  #setup.hidden { display:none; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:22px; width:100%; max-width:520px; }
+  .card h2 { margin:0 0 6px; } .card ol { padding-left:20px; color:var(--muted); line-height:1.55; font-size:14px; }
+  .card a { color:var(--accent); }
+  #setupErr { color:var(--bad); font-size:14px; min-height:18px; margin-top:8px; }
+  #shade { position:absolute; inset:0; pointer-events:none; z-index:2; background:transparent; }
+  #vignette { position:absolute; inset:0; pointer-events:none; z-index:4; background:radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 58%, rgba(0,0,0,.26) 100%); }
+  #fx { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:3; }
+  #btnSound { position:absolute; right:12px; top:60px; z-index:7; background:rgba(12,29,46,.92); }
+  #viewBtns { position:absolute; right:12px; top:12px; z-index:7; display:flex; gap:8px; }
+  #viewBtns button { background:rgba(12,29,46,.92); min-height:40px; }
+  #wxNow { font-size:12.5px; }
+  .set input[type=range] { flex:1; }
+  .set label { display:flex; gap:6px; align-items:center; }
+  /* phone layout (kept last so it wins over the rules above) */
+  @media (max-width: 800px) {
+    #hud { left:6px; right:6px; bottom:26px; gap:4px; display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); }
+    .tile { min-width:0; padding:4px 2px; border-radius:9px; }
+    .tile b { font-size:19px; white-space:nowrap; }
+    .tile span { font-size:8.5px; letter-spacing:.03em; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    #camLabel { display:none; }
+    #viewBtns { top:8px; right:8px; }
+    #btnSound { top:56px; right:8px; }
+    #toast { font-size:14px; top:56px; }
+    #toast:not(.show) { transform:translateX(-50%) translateY(calc(-100% - 100px)); }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="view">
+    <div id="camLabel">Camera: –</div>
+    <div id="viewBtns"><button id="btnCam" title="Change camera">🎥 Auto camera</button></div>
+    <div id="shade"></div><canvas id="fx"></canvas><div id="vignette"></div>
+    <div id="toast"></div>
+    <button id="btnSound" style="display:none">🔊 Tap for sound</button>
+    <div id="hud">
+      <div class="tile"><b id="hPace">–:––</b><span id="hPaceLbl">/500m</span></div>
+      <div class="tile"><b id="hSpm">0</b><span>strokes/min</span></div>
+      <div class="tile"><b id="hWatts">0</b><span>watts</span></div>
+      <div class="tile"><b id="hDist">0</b><span>meters today</span></div>
+      <div class="tile"><b id="hTime">0:00</b><span>time</span></div>
+      <div class="tile" id="hrTile" style="display:none"><b id="hHr">–</b><span>heart</span></div>
+      <div class="tile"><b id="hWind">–</b><span>wind</span></div>
+      <div class="tile"><b id="hLife"><small style="font-size:.55em">🐬</small> …</b><span id="hLifeLbl">learning your pace</span></div>
+    </div>
+  </div>
+
+  <div id="panel">
+    <div class="row" style="align-items:center"><h1>Ocean Row 🌊</h1></div>
+    <select id="selRoute" aria-label="Voyage"></select>
+    <div class="muted" id="wxNow">Getting live weather…</div>
+
+    <div>
+      <div class="label">Voyage progress</div>
+      <div class="big" id="vDone">0 <small>km</small></div>
+      <div class="bar"><div id="vBar"></div></div>
+      <div class="muted"><span id="vPct">0%</span> · <span id="vLeft">–</span> to go</div>
+    </div>
+
+    <div>
+      <div class="label">Boat position</div>
+      <div id="pos">–</div>
+      <div class="muted" id="posNote"></div>
+    </div>
+
+    <div id="mini"></div>
+
+    <div class="row">
+      <button class="primary" id="btnConnect">Connect rower</button>
+      <button id="btnSim">Simulator</button>
+      <button id="btnPause" disabled>Pause</button>
+    </div>
+    <div id="status"></div>
+
+    <details id="settings">
+      <summary>Settings &amp; logbook</summary>
+      <div class="set"><span>Your height</span><select id="selHeight"></select></div>
+      <p class="muted" id="heightNote"></p>
+      <div class="set"><span>Sound</span><label><input type="checkbox" id="chkSound"> on</label><input type="range" id="rngVol" min="0" max="1" step="0.05"></div>
+      <div class="set"><span>Spoken splits</span><label><input type="checkbox" id="chkVoice"> every 500 m</label></div>
+      <div class="set"><span>Real wind</span><label><input type="checkbox" id="chkWind"> affects my speed (max ±12%)</label></div>
+      <div class="set"><span>Boat direction</span><button id="btnFlip" style="flex:1">Boat facing the wrong way? Flip it</button></div>
+      <div class="set"><span>Units</span><select id="selUnits"><option value="km">Kilometers</option><option value="mi">Miles</option><option value="nm">Nautical miles</option></select></div>
+      <div class="set"><span>Simulator speed</span><select id="selSimSpeed"><option value="1">1×</option><option value="10">10×</option><option value="100">100×</option><option value="1000">1000×</option></select></div>
+      <div class="log" id="log" style="margin-top:10px"></div>
+      <div class="row"><button id="btnExport">Back up</button><button id="btnImport">Restore</button><button id="btnReset">Restart voyage</button></div>
+      <div class="row"><button id="btnKey">Change Google key</button></div>
+      <input type="file" id="fileImport" accept="application/json" hidden>
+      <p>The camera changes by itself while you row. Tap the 🎥 button on the view to pick one yourself (keys 1–5, 0 = auto). In the simulator (for testing without the rower), press Space for each stroke.</p>
+    </details>
+  </div>
+</div>
+
+<div id="setup" class="hidden">
+  <div class="card">
+    <h2>Connect Google Maps (one time)</h2>
+    <p class="muted">The 3D view is Google's Photorealistic 3D Maps, the same 3D world as Google Earth. Google requires a free key for it.</p>
+    <ol>
+      <li>Get a key. The quickest is Google's free <a href="https://mapsplatform.google.com/maps-demo-key/" target="_blank" rel="noopener">Maps Demo Key</a> (no credit card, daily limit). Or create one in <a href="https://console.cloud.google.com/google/maps-apis/credentials" target="_blank" rel="noopener">Google Cloud</a> with <b>Maps JavaScript API</b> turned on.</li>
+      <li>Paste it below. It's saved in this browser, so you only do this once.</li>
+    </ol>
+    <input type="text" id="keyInput" placeholder="Paste your Google Maps API key" autocomplete="off" spellcheck="false">
+    <div class="row" style="margin-top:10px"><button class="primary" id="btnSaveKey">Start</button></div>
+    <div id="setupErr"></div>
+    <details style="margin-top:12px"><summary>If it still fails</summary>
+      <ol>
+        <li><b>Open it from a web address instead of the file.</b> Run <code>python ocean-row-bridge.py</code> in the folder with this file, then open <code>http://localhost:8000</code>.</li>
+        <li>In <a href="https://console.cloud.google.com/google/maps-apis/credentials" target="_blank" rel="noopener">Google Cloud &gt; Credentials</a>, open the key and check "Application restrictions". Set it to <b>None</b>, or add <code>http://localhost:8000/*</code> under Websites.</li>
+        <li>Make sure <b>Maps JavaScript API</b> is enabled for the project.</li>
+      </ol>
+    </details>
+  </div>
+</div>
+
+<script>
+// =====================================================================
+// PROCEDURAL 3D MODELS (glTF 2.0 / .glb), built in the browser.
+// Frame: X = right (east), Y = forward (north), Z = up, meters.
+// Google's Model3DElement uses a Z-up map frame, so no extra tilt needed.
+// =====================================================================
+const MODELS = (() => {
+  const rad = d => d * Math.PI / 180;
+  const lin = c => Math.pow(c / 255, 2.2);
+  const hexRGBA = (h, a = 1) => [lin(parseInt(h.slice(1, 3), 16)), lin(parseInt(h.slice(3, 5), 16)), lin(parseInt(h.slice(5, 7), 16)), a];
+
+  // ---- mesh builder: one primitive per color (flat shaded) ----
+  const newMesh = () => ({ prims: new Map() });
+  function prim(m, color, opts = {}) {
+    const k = color + JSON.stringify(opts);
+    let p = m.prims.get(k);
+    if (!p) { p = { color, opts, pos: [], nrm: [], uv: [], col: [], idx: [] }; m.prims.set(k, p); }
+    return p;
+  }
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const norm = v => { const l = Math.hypot(...v) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
+  function tri(m, color, a, b, c) {
+    const cr = cross(sub(b, a), sub(c, a)); if (Math.hypot(...cr) < 1e-10) return;   // skip zero-area triangles
+    const p = prim(m, color), n = norm(cr), i = p.pos.length / 3;
+    p.pos.push(...a, ...b, ...c); p.nrm.push(...n, ...n, ...n); p.idx.push(i, i + 1, i + 2);
+  }
+  const quad = (m, c, a, b, d, e) => { tri(m, c, a, b, d); tri(m, c, a, d, e); };
+  const fan = (m, c, pts) => { for (let i = 1; i + 1 < pts.length; i++) tri(m, c, pts[0], pts[i], pts[i + 1]); };
+  function box(m, c, x0, x1, y0, y1, z0, z1, faces = 'all') {
+    const v = (x, y, z) => [x, y, z];
+    if (faces.includes('t') || faces === 'all') quad(m, c, v(x0, y0, z1), v(x1, y0, z1), v(x1, y1, z1), v(x0, y1, z1));
+    if (faces === 'all') quad(m, c, v(x0, y0, z0), v(x0, y1, z0), v(x1, y1, z0), v(x1, y0, z0));
+    quad(m, c, v(x0, y0, z0), v(x1, y0, z0), v(x1, y0, z1), v(x0, y0, z1));
+    quad(m, c, v(x1, y1, z0), v(x0, y1, z0), v(x0, y1, z1), v(x1, y1, z1));
+    quad(m, c, v(x0, y1, z0), v(x0, y0, z0), v(x0, y0, z1), v(x0, y1, z1));
+    quad(m, c, v(x1, y0, z0), v(x1, y1, z0), v(x1, y1, z1), v(x1, y0, z1));
+  }
+  // Box stretched between two points (arms, legs, oars, masts)
+  function limb(m, c, p0, p1, w, h = w) {
+    const d = norm(sub(p1, p0));
+    let u = Math.abs(d[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+    const s = norm(cross(d, u)); u = norm(cross(s, d));
+    const corner = (p, a, b) => [p[0] + s[0] * a * w / 2 + u[0] * b * h / 2, p[1] + s[1] * a * w / 2 + u[1] * b * h / 2, p[2] + s[2] * a * w / 2 + u[2] * b * h / 2];
+    const A = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => corner(p0, a, b));
+    const B = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => corner(p1, a, b));
+    for (let i = 0; i < 4; i++) { const j = (i + 1) % 4; quad(m, c, A[i], A[j], B[j], B[i]); }
+    fan(m, c, A.slice().reverse()); fan(m, c, B);
+  }
+  function sphere(m, c, ctr, r, seg = 10, ring = 7, zScale = 1, zMin = -1) {
+    const P = (i, j) => { const th = i / seg * 2 * Math.PI, ph = Math.max(zMin, -1 + 2 * j / ring) * Math.PI / 2;
+      return [ctr[0] + r * Math.cos(ph) * Math.cos(th), ctr[1] + r * Math.cos(ph) * Math.sin(th), ctr[2] + r * zScale * Math.sin(ph)]; };
+    for (let j = 0; j < ring; j++) for (let i = 0; i < seg; i++) quad(m, c, P(i, j), P(i + 1, j), P(i + 1, j + 1), P(i, j + 1));
+  }
+  // Loft a closed/open cross-section along Y. sections: [{y, pts:[[x,z],...]}], colors per segment index
+  function loft(m, sections, segColor, capStart, capEnd) {
+    for (let s = 0; s + 1 < sections.length; s++) {
+      const A = sections[s], B = sections[s + 1];
+      for (let i = 0; i + 1 < A.pts.length; i++) {
+        const c = segColor(i);
+        quad(m, c, [A.pts[i][0], A.y, A.pts[i][1]], [A.pts[i + 1][0], A.y, A.pts[i + 1][1]], [B.pts[i + 1][0], B.y, B.pts[i + 1][1]], [B.pts[i][0], B.y, B.pts[i][1]]);
+      }
+    }
+    if (capStart) fan(m, capStart, sections[0].pts.map(([x, z]) => [x, sections[0].y, z]));
+    if (capEnd) fan(m, capEnd, sections[sections.length - 1].pts.map(([x, z]) => [x, sections[sections.length - 1].y, z]));
+  }
+
+  // ---- generic hull: smooth U-section, raked bow, transom stern ----
+  // bands: [[fromFraction, toFraction, color]] (0 = keel, 1 = deck edge). Returns deck-edge sampler.
+  function hull(m, o) {
+    const { L, B, draft, free, bowRise = 0.3, transom = 0.6, fullness = 0.6, bands, deck, n = 40 } = o;
+    const plan = t => t >= 0 ? Math.pow(Math.max(0, 1 - Math.pow(t / 0.5, 1.8 + fullness * 4)), 0.55)
+                             : transom + (1 - transom) * Math.pow(Math.max(0, 1 - Math.pow(-t / 0.5, 2 + fullness * 4)), 0.5);
+    const keel = t => -draft + (t > 0.3 ? Math.pow((t - 0.3) / 0.2, 2) * draft * 0.9 : 0) + (t < -0.42 ? Math.pow((-0.42 - t) / 0.08, 2) * draft * 0.35 : 0);
+    const sheer = t => free + (t > 0 ? bowRise * free * Math.pow(t / 0.5, 2) : 0.1 * free * Math.pow(t / 0.5, 2));
+    const ts = []; for (let i = 0; i <= n; i++) { const u = i / n; ts.push(u < .5 ? -0.5 + u : 0.5 * Math.sin((u - .5) * Math.PI)); }
+    const at = (t, f) => { const z = keel(t) + f * (sheer(t) - keel(t)); return [B / 2 * plan(t) * Math.pow(Math.max(f, 0.0001), 0.3), z]; };
+    for (const [f0, f1, col] of bands) {
+      const rows = Math.max(1, Math.round((f1 - f0) * 8));
+      for (const side of [-1, 1]) {
+        const secs = ts.map(t => ({ y: t * L, pts: Array.from({ length: rows + 1 }, (_, k) => { const [x, z] = at(t, f0 + (f1 - f0) * k / rows); return [side * x, z]; }) }));
+        loft(m, secs, () => col);
+      }
+    }
+    // transom
+    const tr = []; for (let k = 0; k <= 8; k++) { const [x, z] = at(-0.5, k / 8); tr.push([x, -L / 2, z]); }
+    const tl = tr.map(([x, y, z]) => [-x, y, z]).reverse();
+    fan(m, bands[bands.length - 1][2], [[0, -L / 2, (keel(-0.5) + sheer(-0.5)) / 2], ...tr, ...tl, tr[0]]);
+    // deck
+    for (let i = 0; i + 1 < ts.length; i++) {
+      const a = at(ts[i], 1), b = at(ts[i + 1], 1);
+      quad(m, deck, [-a[0], ts[i] * L, a[1]], [a[0], ts[i] * L, a[1]], [b[0], ts[i + 1] * L, b[1]], [-b[0], ts[i + 1] * L, b[1]]);
+    }
+    return { deckAt: y => { const t = y / L; const [x, z] = at(t, 1); return { half: x, z }; } };
+  }
+  // Cabin/superstructure: arched or boxy section lofted between y0..y1 on the deck
+  function cabin(m, H, y0, y1, o) {
+    const { widthF = 0.8, height, arch = 0.3, color, window: win, roof, n = 8 } = o;
+    const secs = [];
+    for (let i = 0; i <= n; i++) {
+      const y = y0 + (y1 - y0) * i / n, d = H.deckAt(y), w = d.half * widthF, z0 = d.z - 0.02, z1 = z0 + height;
+      secs.push({ y, pts: [[-w, z0], [-w, z1 - arch * height], [-w * 0.7, z1 - arch * height * 0.25], [0, z1], [w * 0.7, z1 - arch * height * 0.25], [w, z1 - arch * height], [w, z0]] });
+    }
+    loft(m, secs, i => (win && (i === 0 || i === 5)) ? color : (i === 2 || i === 3) ? (roof || color) : color, color, color);
+    if (win) for (const side of [-1, 1]) {           // dark window band
+      const ya = y0 + (y1 - y0) * .15, yb = y0 + (y1 - y0) * .85, da = H.deckAt(ya), db = H.deckAt(yb);
+      const wa = da.half * widthF + .01, wb = db.half * widthF + .01, za = da.z + height * .45, zb = db.z + height * .45, hh = height * .22;
+      quad(m, win, [side * wa, ya, za], [side * wb, yb, zb], [side * wb, yb, zb + hh], [side * wa, ya, za + hh]);
+    }
+  }
+
+  // ---- GLB writer ----
+  function toGLB(m, images = []) {
+    const prims = [...m.prims.values()].filter(p => p.idx.length);
+    const chunks = []; let off = 0; const bufferViews = [], accessors = [], gPrims = [], materials = [];
+    const add = (typed, target) => {
+      const pad = (4 - off % 4) % 4; if (pad) { chunks.push(new Uint8Array(pad)); off += pad; }
+      const bytes = typed instanceof Uint8Array ? typed : new Uint8Array(typed.buffer, typed.byteOffset, typed.byteLength);
+      bufferViews.push(Object.assign({ buffer: 0, byteOffset: off, byteLength: bytes.length }, target ? { target } : {}));
+      chunks.push(bytes); off += bytes.length; return bufferViews.length - 1;
+    };
+    const acc = (arr, type, comp, target, minmax) => {
+      const typed = comp === 5126 ? new Float32Array(arr) : comp === 5125 ? new Uint32Array(arr) : new Uint16Array(arr);
+      const a = { bufferView: add(typed, target), componentType: comp, count: arr.length / ({ SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 }[type]), type };
+      if (minmax) { const mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9]; for (let i = 0; i < arr.length; i += 3) for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], arr[i + k]); mx[k] = Math.max(mx[k], arr[i + k]); } a.min = mn; a.max = mx; }
+      accessors.push(a); return accessors.length - 1;
+    };
+    for (const p of prims) {
+      const attributes = { POSITION: acc(p.pos, 'VEC3', 5126, 34962, true), NORMAL: acc(p.nrm, 'VEC3', 5126, 34962) };
+      if (p.uv.length) attributes.TEXCOORD_0 = acc(p.uv, 'VEC2', 5126, 34962);
+      if (p.col.length) attributes.COLOR_0 = acc(p.col, 'VEC4', 5126, 34962);
+      const big = p.pos.length / 3 > 65535;
+      const mat = { pbrMetallicRoughness: { baseColorFactor: hexRGBA(p.color, p.opts.alpha ?? 1), metallicFactor: 0, roughnessFactor: p.opts.rough ?? 0.75 }, doubleSided: true };
+      if (p.opts.alpha != null && p.opts.alpha < 1 || p.opts.tex != null) mat.alphaMode = 'BLEND';
+      if (p.opts.emissive) mat.emissiveFactor = hexRGBA(p.color).slice(0, 3).map(v => Math.min(1, v * p.opts.emissive));
+      if (p.opts.tex != null) mat.pbrMetallicRoughness.baseColorTexture = { index: p.opts.tex };
+      materials.push(mat);
+      gPrims.push({ attributes, indices: acc(p.idx, 'SCALAR', big ? 5125 : 5123, 34963), material: materials.length - 1, mode: 4 });
+    }
+    const json = { asset: { version: '2.0', generator: 'Ocean Row' }, scene: 0, scenes: [{ nodes: [0] }], nodes: [{ mesh: 0 }], meshes: [{ primitives: gPrims }], materials, accessors, bufferViews };
+    if (images.length) {
+      json.images = images.map(png => ({ bufferView: add(png), mimeType: 'image/png' }));
+      json.samplers = [{ magFilter: 9729, minFilter: 9729, wrapS: 33071, wrapT: 33071 }];
+      json.textures = images.map((_, i) => ({ source: i, sampler: 0 }));
+    }
+    const padTo4 = n => (n + 3) & ~3;
+    const binLen = padTo4(off);
+    json.buffers = [{ byteLength: binLen }];
+    let js = new TextEncoder().encode(JSON.stringify(json)); const jsLen = padTo4(js.length);
+    const out = new Uint8Array(12 + 8 + jsLen + 8 + binLen), dv = new DataView(out.buffer);
+    dv.setUint32(0, 0x46546C67, true); dv.setUint32(4, 2, true); dv.setUint32(8, out.length, true);
+    dv.setUint32(12, jsLen, true); dv.setUint32(16, 0x4E4F534A, true); out.set(js, 20); out.fill(0x20, 20 + js.length, 20 + jsLen);
+    const b0 = 20 + jsLen; dv.setUint32(b0, binLen, true); dv.setUint32(b0 + 4, 0x004E4942, true);
+    let o2 = b0 + 8; for (const c of chunks) { out.set(c, o2); o2 += c.length; }
+    return out;
+  }
+  function toDataURL(bytes) {
+    let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return 'data:model/gltf-binary;base64,' + btoa(s);
+  }
+
+  // ---- textures (PNG made with a canvas) ----
+  async function pngFrom(draw, w = 128, h = 128) {
+    const c = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(w, h) : Object.assign(document.createElement('canvas'), { width: w, height: h });
+    draw(c.getContext('2d'), w, h);
+    const blob = c.convertToBlob ? await c.convertToBlob({ type: 'image/png' }) : await new Promise(r => c.toBlob(r, 'image/png'));
+    return new Uint8Array(await blob.arrayBuffer());
+  }
+  const radialAlpha = (inner = 0.55) => pngFrom((g, w, h) => {
+    const img = g.createImageData(w, h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const r = Math.hypot((x + .5) / w * 2 - 1, (y + .5) / h * 2 - 1), a = r < inner ? 1 : Math.max(0, 1 - (r - inner) / (1 - inner));
+      const i = (y * w + x) * 4; img.data.set([255, 255, 255, Math.round(255 * a * a * (3 - 2 * a))], i);
+    }
+    g.putImageData(img, 0, 0);
+  });
+  // Wake: bright near the stern, fading behind and to the sides
+  const wakeAlpha = () => pngFrom((g, w, h) => {
+    const img = g.createImageData(w, h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const v = y / (h - 1), u = Math.abs((x + .5) / w * 2 - 1);
+      const edge = Math.exp(-Math.pow((u - 0.82 * v - 0.12) / 0.09, 2));       // the two V-arms
+      const center = Math.exp(-Math.pow(u / (0.12 + 0.25 * v), 2)) * 0.55;       // churned water behind
+      const n = 0.75 + 0.25 * Math.sin(x * 1.7 + y * 2.3) * Math.sin(y * 0.9 - x * 0.4);
+      const a = Math.min(1, (edge + center) * (1 - v) * n);
+      img.data.set([255, 255, 255, Math.round(255 * a)], (y * w + x) * 4);
+    }
+    g.putImageData(img, 0, 0);
+  });
+
+  const PIN = { y: 0.2, z: 0.73, x: 0.98 };   // oarlock position in boat frame (for placing oars)
+  const SEAT = { y: 0.55, z: 0.62 };          // seat base position in boat frame
+  // =================== the models ===================
+  const C = { navy: '#1d2b48', orange: '#ff7a1a', white: '#f2f3f1', teal: '#16a3b5', deck: '#c9cfd3', dark: '#1a2430', steel: '#9aa3ab', solar: '#20365e' };
+
+  // Ocean rowing boat (no rower, no oars). Waterline at z = 0.
+  function rowBoat() {
+    const m = newMesh();
+    const H = hull(m, { L: 7.2, B: 1.75, draft: 0.33, free: 0.5, bowRise: 0.7, transom: 0.62, fullness: 0.15, deck: C.deck,
+      bands: [[0, .41, C.navy], [.41, .5, C.orange], [.5, .84, C.white], [.84, .91, C.teal], [.91, 1, C.white]] });
+    cabin(m, H, -3.55, -1.35, { height: 0.95, color: C.white, window: C.dark, roof: C.white });
+    const r = H.deckAt(-2.4); box(m, C.solar, -0.45, 0.45, -3.2, -1.7, r.z + 0.93, r.z + 0.97);     // solar panels
+    cabin(m, H, 2.15, 3.25, { height: 0.5, widthF: 0.75, color: C.white, roof: C.white });
+    const yRail = [-1.25, 1.15]; for (const x of [-0.13, 0.13]) box(m, C.steel, x - 0.02, x + 0.02, yRail[0], yRail[1], H.deckAt(0).z, H.deckAt(0).z + 0.07);
+    box(m, C.dark, -0.3, 0.3, -1.25, -1.1, H.deckAt(-1.2).z, H.deckAt(-1.2).z + 0.28);                // foot stretcher
+    for (const s of [-1, 1]) {                                                                         // riggers + oarlocks
+      const d = H.deckAt(0.2);
+      limb(m, C.steel, [s * d.half * 0.9, 0.0, d.z + 0.05], [s * 0.98, 0.2, d.z + 0.2], 0.04);
+      limb(m, C.steel, [s * d.half * 0.9, 0.45, d.z + 0.05], [s * 0.98, 0.2, d.z + 0.2], 0.04);
+      box(m, C.dark, s * 0.98 - 0.03, s * 0.98 + 0.03, 0.17, 0.23, d.z + 0.18, d.z + 0.3);
+    }
+    const a = H.deckAt(-3.3); limb(m, C.steel, [0, -3.3, a.z + 0.95], [0, -3.3, a.z + 2.3], 0.03);    // antenna + flag
+    quad(m, C.orange, [0, -3.3, a.z + 2.3], [0, -3.75, a.z + 2.15], [0, -3.75, a.z + 1.95], [0, -3.3, a.z + 2.05]);
+    return toGLB(m);
+  }
+
+  // Seated rower facing the stern (-Y). Origin at the seat. heightM scales the body.
+  function rower(heightM = 1.75, shirt = '#16a3b5') {
+    const m = newMesh(), s = heightM / 1.75, P = (x, y, z) => [x * s, y * s, z * s];
+    const skin = '#d8a27c', shorts = '#1d2b48';
+    box(m, C.dark, -0.16, 0.16, -0.16, 0.16, -0.06, 0.0);                                              // seat
+    for (const x of [-0.1, 0.1]) {
+      limb(m, shorts, P(x, 0, 0.1), P(x, -0.42, 0.36), 0.15 * s);                                     // thigh
+      limb(m, skin, P(x, -0.42, 0.36), P(x * 1.1, -0.78, 0.12), 0.11 * s);                           // shin
+      limb(m, '#f2f3f1', P(x * 1.1, -0.78, 0.08), P(x * 1.1, -0.98, 0.1), 0.1 * s, 0.08 * s);         // shoe
+    }
+    limb(m, shirt, P(0, 0.02, 0.08), P(0, 0.08, 0.66), 0.36 * s, 0.22 * s);                           // torso
+    limb(m, skin, P(0, 0.08, 0.66), P(0, 0.08, 0.74), 0.1 * s);                                       // neck
+    sphere(m, skin, P(0, 0.07, 0.86), 0.115 * s, 10, 7, 1.12);                                        // head
+    sphere(m, '#f2f3f1', P(0, 0.07, 0.9), 0.122 * s, 10, 4, 0.9, 0.0);                                 // cap
+    box(m, '#f2f3f1', -0.09 * s, 0.09 * s, -0.17 * s, -0.04 * s, 0.9 * s, 0.92 * s);                   // brim
+    for (const x of [-1, 1]) {
+      limb(m, shirt, P(x * 0.18, 0.07, 0.62), P(x * 0.27, -0.12, 0.47), 0.1 * s);                     // upper arm
+      limb(m, skin, P(x * 0.27, -0.12, 0.47), P(x * 0.24, -0.36, 0.43), 0.08 * s);                    // forearm
+    }
+    return toGLB(m);
+  }
+  // Rower at a point in the stroke (u: 0 = catch, 1 = finish). Origin at the seat; the body is scaled
+  // by height, but the hands always reach the real oar handles and the feet stay on the foot stretcher.
+  const strokeAt = u => ({ sweep: 38 - 70 * u, slide: -0.24 + 0.46 * u, lean: -24 + 42 * u });
+  function ik(a, b, root, target, pole) {         // two-bone reach: returns the joint (knee / elbow)
+    const d = sub(target, root), L = Math.hypot(...d), dir = norm(d);
+    if (L >= a + b - 1e-4) return root.map((v, i) => v + dir[i] * a * L / (a + b));
+    const cosA = (a * a + L * L - b * b) / (2 * a * L), sinA = Math.sqrt(Math.max(0, 1 - cosA * cosA));
+    const pd = pole.reduce((t, v, i) => t + v * dir[i], 0), perp = norm(pole.map((v, i) => v - pd * dir[i]));
+    return root.map((v, i) => v + a * (cosA * dir[i] + sinA * perp[i]));
+  }
+  function rowerPose(heightM = 1.75, u = 0.5, shirt = '#16a3b5') {
+    const m = newMesh(), s = heightM / 1.75, skin = '#d8a27c', shorts = '#1d2b48', st = strokeAt(u);
+    const lean = rad(st.lean), seatY = SEAT.y + st.slide * s;
+    box(m, C.dark, -0.16, 0.16, -0.16, 0.16, -0.06, 0.0);                                               // seat pad
+    const hip = [0, 0, 0.1 * s], sh = [0, 0.56 * s * Math.sin(lean), 0.1 * s + 0.56 * s * Math.cos(lean)];
+    const up = norm(sub(sh, hip));
+    // legs: feet on the stretcher, which is fixed in the boat
+    const footY = -(0.85 + st.slide) * s;
+    for (const x of [-0.1, 0.1]) {
+      const h = [x * s, 0, 0.1 * s], ankle = [x * 1.1 * s, footY, 0.12 * s];
+      const knee = ik(0.47 * s, 0.45 * s, h, ankle, [0, -0.2, 1]);
+      limb(m, shorts, h, knee, 0.15 * s); limb(m, skin, knee, ankle, 0.11 * s);
+      limb(m, '#f2f3f1', [ankle[0], ankle[1] + 0.03 * s, ankle[2] - 0.04 * s], [ankle[0], ankle[1] - 0.2 * s, ankle[2] + 0.02 * s], 0.1 * s, 0.08 * s);
+    }
+    limb(m, shirt, [0, -0.02 * s * Math.sin(lean), 0.08 * s], sh, 0.36 * s, 0.22 * s);                  // torso
+    const neckTop = sh.map((v, i) => v + up[i] * 0.09 * s), head = sh.map((v, i) => v + up[i] * 0.21 * s);
+    limb(m, skin, sh, neckTop, 0.1 * s);
+    sphere(m, skin, head, 0.115 * s, 10, 7, 1.12);
+    sphere(m, '#f2f3f1', head.map((v, i) => v + up[i] * 0.04 * s), 0.122 * s, 10, 4, 0.9, 0.0);         // cap
+    const brim = head.map((v, i) => v + up[i] * 0.04 * s);
+    box(m, '#f2f3f1', brim[0] - 0.09 * s, brim[0] + 0.09 * s, brim[1] - 0.17 * s, brim[1] - 0.04 * s, brim[2] - 0.01 * s, brim[2] + 0.01 * s);
+    // arms: hands on the oar handles (real boat geometry, not scaled)
+    const sw = rad(st.sweep);
+    for (const side of [-1, 1]) {
+      const handle = [side * (PIN.x - 0.82 * Math.cos(sw)), PIN.y - 0.82 * Math.sin(sw) - seatY, PIN.z + 0.01 - SEAT.z];
+      const shoulder = [side * 0.18 * s, sh[1] - 0.03 * s * Math.cos(lean), sh[2] - 0.04 * s];
+      const elbow = ik(0.29 * s, 0.29 * s, shoulder, handle, [side, 0.3, -1]);
+      limb(m, shirt, shoulder, elbow, 0.1 * s); limb(m, skin, elbow, handle, 0.08 * s);
+      sphere(m, skin, handle, 0.05 * s, 6, 4);
+    }
+    return toGLB(m);
+  }
+  // Scull: origin at the oarlock pin, shaft along +X (starboard). side = -1 mirrors for port.
+  function oar(side = 1, feathered = false) {
+    const m = newMesh(), X = x => x * side;
+    limb(m, '#2a2f36', [X(-0.95), 0, 0.02], [X(-0.68), 0, -0.04], 0.045);                              // handle grip
+    limb(m, '#e9e9e4', [X(-0.68), 0, -0.04], [X(1.85), 0, -0.55], 0.04);                                // shaft
+    box(m, C.dark, Math.min(X(-0.08), X(0.04)), Math.max(X(-0.08), X(0.04)), -0.04, 0.04, -0.07, 0.03); // collar
+    limb(m, C.orange, [X(1.85), 0, -0.55], [X(2.35), 0, -0.64], feathered ? 0.2 : 0.035, feathered ? 0.035 : 0.2);   // blade (square or feathered)
+    return toGLB(m);
+  }
+  // Wake V behind a boat: origin at stern, extends backwards (-Y). Built 1 m long; scale it.
+  async function wake() {
+    const m = newMesh(), p = prim(m, '#ffffff', { tex: 0, alpha: 0.9, rough: 1 });
+    const pts = [[-0.08, 0, 0.03], [0.08, 0, 0.03], [0.85, -1, 0.03], [-0.85, -1, 0.03]], uv = [[0.45, 0], [0.55, 0], [1, 1], [0, 1]];
+    for (const q of pts) { p.pos.push(...q); p.nrm.push(0, 0, 1); } for (const t of uv) p.uv.push(...t);
+    p.idx.push(0, 1, 2, 0, 2, 3);
+    return toGLB(m, [await wakeAlpha()]);
+  }
+
+  // ---- ships ----
+  function rng(seed) { let s = seed >>> 0; return () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function cargo(seed = 1) {
+    const m = newMesh(), r = rng(seed), L = 150, B = 24;
+    const H = hull(m, { L, B, draft: 8, free: 9, bowRise: 0.25, transom: 0.85, fullness: 1, deck: '#5b5f63', n: 30,
+      bands: [[0, .47, '#8a2323'], [.47, .5, '#f2f3f1'], [.5, 1, ['#1e2b45', '#20403a', '#3a3f45'][seed % 3]]] });
+    const cols = ['#c0392b', '#2e6fb5', '#e67e22', '#27ae60', '#7f8c8d', '#f1c40f', '#8e44ad', '#1abc9c', '#d35400', '#34495e'];
+    const dz = H.deckAt(0).z;
+    for (let y = -40; y < 58; y += 6.5) { const bayH = 1 + Math.floor(r() * 4);
+      for (let x = -9.6; x < 9.6; x += 2.45) for (let k = 0; k < bayH; k++) if (r() > 0.06)
+        box(m, cols[Math.floor(r() * cols.length)], x + .05, x + 2.4, y, y + 6.1, dz + k * 2.6, dz + k * 2.6 + 2.55, k === bayH - 1 ? 'all' : 'sides'); }
+    box(m, '#f2f3f1', -10, 10, -62, -48, dz, dz + 18); box(m, C.dark, -10.05, 10.05, -48.1, -47.9, dz + 13, dz + 16);  // bridge + windows
+    box(m, '#f2f3f1', -12.5, 12.5, -51, -48, dz + 16, dz + 18);                                                         // bridge wings
+    box(m, '#222222', -2.5, 2.5, -66, -62, dz + 10, dz + 24); box(m, '#c0392b', -2.55, 2.55, -66.05, -61.95, dz + 20, dz + 22);
+    return toGLB(m);
+  }
+  function tanker() {
+    const m = newMesh(), L = 200, B = 32;
+    const H = hull(m, { L, B, draft: 11, free: 8, bowRise: 0.2, transom: 0.9, fullness: 1.2, deck: '#7a3b2a', n: 30,
+      bands: [[0, .55, '#8a2323'], [.55, .58, '#f2f3f1'], [.58, 1, '#1b1d20']] });
+    const dz = H.deckAt(0).z;
+    limb(m, '#c9c2b0', [0, -70, dz + 1.5], [0, 85, dz + 1.5], 2.2, 1.6);                              // pipe run
+    for (let y = -60; y < 80; y += 18) box(m, '#c9c2b0', -9, 9, y, y + 1.2, dz, dz + 2.5);
+    box(m, '#f2f3f1', -13, 13, -96, -78, dz, dz + 22); box(m, C.dark, -13.05, 13.05, -78.1, -77.9, dz + 17, dz + 20);
+    box(m, '#222222', -3, 3, -99, -94, dz + 14, dz + 30);
+    return toGLB(m);
+  }
+  function ferry() {
+    const m = newMesh(), L = 72, B = 15;
+    const H = hull(m, { L, B, draft: 3, free: 4.5, bowRise: 0.35, transom: 0.85, fullness: 0.8, deck: '#d9dcdf', n: 30,
+      bands: [[0, .4, '#1d2b48'], [.4, .75, '#f2f3f1'], [.75, .85, '#1f6fb2'], [.85, 1, '#f2f3f1']] });
+    const dz = H.deckAt(0).z;
+    for (let k = 0; k < 3; k++) {
+      const y0 = -30 + k * 4, y1 = 26 - k * 7, w = 6.6 - k * 0.6, z0 = dz + k * 2.8;
+      box(m, '#f7f7f5', -w, w, y0, y1, z0, z0 + 2.6);
+      for (const s of [-1, 1]) quad(m, C.dark, [s * (w + .02), y0 + 1, z0 + 1.1], [s * (w + .02), y1 - 1, z0 + 1.1], [s * (w + .02), y1 - 1, z0 + 2], [s * (w + .02), y0 + 1, z0 + 2]);
+      quad(m, C.dark, [-w + 1, y1 + .02, z0 + 1.1], [w - 1, y1 + .02, z0 + 1.1], [w - 1, y1 + .02, z0 + 2], [-w + 1, y1 + .02, z0 + 2]);
+    }
+    box(m, '#1f6fb2', -1.6, 1.6, -22, -18, dz + 8.4, dz + 12.5);
+    return toGLB(m);
+  }
+  function fishing() {
+    const m = newMesh(), L = 22, B = 6.5;
+    const H = hull(m, { L, B, draft: 2.2, free: 2.2, bowRise: 0.6, transom: 0.8, fullness: 0.6, deck: '#8a8f94', n: 30,
+      bands: [[0, .48, '#8a2323'], [.48, .53, '#f2f3f1'], [.53, 1, '#1f5f8b']] });
+    const dz = H.deckAt(3).z;
+    box(m, '#f2f3f1', -2.3, 2.3, 1, 6, dz, dz + 2.8); box(m, C.dark, -2.32, 2.32, 5.98, 6.02, dz + 1.6, dz + 2.4);
+    box(m, C.dark, -2.32, -2.28, 1.5, 5.5, dz + 1.6, dz + 2.4); box(m, C.dark, 2.28, 2.32, 1.5, 5.5, dz + 1.6, dz + 2.4);
+    limb(m, '#d9d9d9', [0, 0, dz], [0, -0.5, dz + 9], 0.25); limb(m, '#d9d9d9', [0, -0.3, dz + 6], [0, -9, dz + 2.5], 0.18);   // mast + boom
+    limb(m, '#f39c12', [-2.5, -9, dz + 0.6], [2.5, -9, dz + 0.6], 0.4);
+    return toGLB(m);
+  }
+  function sailboat(sail = '#f7f7f2') {
+    const m = newMesh(), L = 11.5, B = 3.7;
+    const H = hull(m, { L, B, draft: 0.7, free: 1.0, bowRise: 0.35, transom: 0.7, fullness: 0.2, deck: '#c8a876', n: 30,
+      bands: [[0, .4, '#1d2b48'], [.4, .47, '#16a3b5'], [.47, 1, '#f7f7f5']] });
+    const dz = H.deckAt(0).z;
+    cabin(m, H, -2.2, 1.6, { height: 0.6, widthF: 0.7, color: '#f7f7f5', window: C.dark, arch: 0.4 });
+    limb(m, '#c9ccd0', [0, 0.6, dz], [0, 0.6, dz + 15], 0.14);                                        // mast
+    limb(m, '#c9ccd0', [0, 0.6, dz + 1.6], [0, -4.4, dz + 1.7], 0.12);                                // boom
+    tri(m, sail, [0.03, 0.5, dz + 1.75], [0.03, 0.5, dz + 14.6], [0.03, -4.3, dz + 1.8]);           // mainsail
+    tri(m, sail, [0.02, 0.75, dz + 13.5], [0.02, 5.6, dz + 0.6], [0.02, 1.2, dz + 0.9]);             // jib
+    return toGLB(m);
+  }
+  function motorYacht() {
+    const m = newMesh(), L = 18, B = 5;
+    const H = hull(m, { L, B, draft: 1.2, free: 1.8, bowRise: 0.5, transom: 0.85, fullness: 0.4, deck: '#c8a876', n: 30,
+      bands: [[0, .45, '#d9dde0'], [.45, .5, '#1d2b48'], [.5, 1, '#fbfbfa']] });
+    const dz = H.deckAt(0).z;
+    cabin(m, H, -4.5, 3.5, { height: 1.7, widthF: 0.82, color: '#fbfbfa', window: '#14202b', arch: 0.25 });
+    cabin(m, H, -3.5, 0.5, { height: 2.9, widthF: 0.6, color: '#fbfbfa', window: '#14202b', arch: 0.1 });
+    return toGLB(m);
+  }
+
+  // ---- sea life ----
+  // Streamlined body lofted along +Y (nose forward). profile: [t (0 tail .. 1 nose), radius, zOffset]
+  function body(m, L, profile, top, belly, n = 12) {
+    const secs = profile.map(([t, r, zo, wScale = 1]) => ({ y: (t - 0.5) * L, pts: Array.from({ length: n + 1 }, (_, k) => {
+      const a = -Math.PI / 2 + k / n * 2 * Math.PI; return [Math.cos(a) * r * wScale, zo + Math.sin(a) * r]; }) }));
+    loft(m, secs, i => (i >= n / 4 && i < 3 * n / 4) ? top : belly);
+    return secs;
+  }
+  function dolphin() {
+    const m = newMesh(), L = 2.4, top = '#5d6f80', belly = '#c9d3dc';
+    body(m, L, [[0, .03, 0], [.08, .07, 0], [.25, .17, .02], [.5, .25, .04], [.7, .24, .04], [.82, .19, .02], [.88, .12, 0], [.9, .07, -.02], [1, .035, -.03]], top, belly);
+    const y = t => (t - 0.5) * L;
+    fan(m, top, [[0, y(.62), .27], [0, y(.42), .62], [0, y(.4), .55], [0, y(.48), .27]]);                       // dorsal fin
+    for (const s of [-1, 1]) fan(m, top, [[s * .18, y(.72), -.08], [s * .5, y(.62), -.25], [s * .45, y(.58), -.2], [s * .18, y(.64), -.1]]);  // flippers
+    fan(m, top, [[0, y(.04), 0], [.42, y(-.1), .02], [.32, y(-.03), 0], [0, y(.02), 0], [-.32, y(-.03), 0], [-.42, y(-.1), .02]]);           // tail flukes
+    return toGLB(m);
+  }
+  function whale() {
+    const m = newMesh(), L = 14, top = '#2f3a45', belly = '#8794a0';
+    body(m, L, [[0, .12, 0], [.1, .45, 0], [.3, 1.2, .1], [.55, 1.75, .2, 1.1], [.75, 1.7, .25, 1.15], [.9, 1.3, .15, 1.1], [.97, .8, 0], [1, .3, -.1]], top, belly, 14);
+    const y = t => (t - 0.5) * L;
+    fan(m, top, [[0, y(.38), 1.2], [0, y(.31), 1.75], [0, y(.28), 1.25]]);                                                 // small dorsal
+    for (const s of [-1, 1]) fan(m, top, [[s * 1.4, y(.78), -.6], [s * 4.2, y(.6), -1.4], [s * 3.8, y(.56), -1.3], [s * 1.4, y(.7), -.7]]);   // long flippers
+    fan(m, top, [[0, y(.02), 0], [2.6, y(-.12), .2], [1.9, y(-.04), 0], [0, y(.0), 0], [-1.9, y(-.04), 0], [-2.6, y(-.12), .2]]);              // flukes
+    return toGLB(m);
+  }
+  function turtle() {
+    const m = newMesh(), shell = '#5a6b3a', plate = '#7d8a4a', skin = '#8b8f5a';
+    // shell: low dome lofted along Y
+    const secs = [];
+    for (let i = 0; i <= 10; i++) { const t = i / 10, y = (t - 0.5) * 1.0, w = 0.42 * Math.sqrt(Math.max(0, 1 - Math.pow(2 * t - 1, 2))) + 0.02, h = 0.22 * Math.sqrt(Math.max(0, 1 - Math.pow(2 * t - 1, 2)));
+      secs.push({ y, pts: Array.from({ length: 9 }, (_, k) => { const a = Math.PI * k / 8; return [-Math.cos(a) * w, Math.sin(a) * h]; }) }); }
+    loft(m, secs, i => (i === 3 || i === 4) ? plate : shell);
+    fan(m, '#c9c08a', secs.map(s => [s.pts[0][0], s.y, 0]).concat(secs.slice().reverse().map(s => [s.pts[8][0], s.y, 0])));    // belly
+    sphere(m, skin, [0, 0.58, 0.04], 0.1, 8, 6, 0.8);                                                                            // head
+    for (const s of [-1, 1]) {
+      fan(m, skin, [[s * .3, .25, 0], [s * .78, .32, -.02], [s * .72, .2, -.03], [s * .32, .12, -.01]]);                            // front flippers
+      fan(m, skin, [[s * .25, -.32, 0], [s * .45, -.48, -.02], [s * .38, -.52, -.02], [s * .2, -.4, 0]]);                           // back flippers
+    }
+    return toGLB(m);
+  }
+  // Shark: only the fins break the surface; body is a dark shadow just below
+  function shark() {
+    const m = newMesh(), top = '#4a5560', belly = '#c7ced4', L = 3.2;
+    body(m, L, [[0, .04, 0], [.1, .1, 0], [.3, .22, 0], [.55, .3, 0, 1.15], [.75, .27, 0, 1.1], [.9, .17, -.02], [1, .05, -.05]], top, belly);
+    const y = t => (t - 0.5) * L;
+    fan(m, top, [[0, y(.6), .24], [0, y(.42), .78], [0, y(.38), .72], [0, y(.45), .26]]);                         // dorsal fin
+    fan(m, top, [[0, y(.06), 0], [0, y(-.12), .55], [0, y(-.06), .1], [0, y(-.1), -.4], [0, y(.02), -.02]]);       // tail
+    for (const s of [-1, 1]) fan(m, top, [[s * .25, y(.7), -.12], [s * .75, y(.52), -.32], [s * .7, y(.48), -.3], [s * .25, y(.6), -.12]]);
+    return toGLB(m);
+  }
+  function seal() {
+    const m = newMesh(), c = '#5b5650', light = '#8a837a';
+    body(m, 1.7, [[0, .05, 0], [.15, .16, 0], [.45, .28, 0], [.7, .27, .02], [.85, .2, .06], [.93, .14, .08], [1, .06, .06]], c, light);
+    sphere(m, '#1b1b1b', [-.07, .73, .19], .025, 6, 4); sphere(m, '#1b1b1b', [.07, .73, .19], .025, 6, 4);                // eyes
+    for (const s of [-1, 1]) fan(m, c, [[s * .2, .2, -.1], [s * .48, .06, -.2], [s * .42, .0, -.2], [s * .2, .12, -.12]]);
+    return toGLB(m);
+  }
+  // Birds: wings bend at the shoulder and the wrist. frame = wing position through the flap (0 up … 3 down, 4 glide)
+  const WING_FRAMES = [[40, 22], [14, -2], [-20, -24], [-4, -26], [6, -16]];
+  function bird(kind = 'gull', frame = 4) {
+    const m = newMesh(), gull = kind === 'gull';
+    const half = gull ? 0.68 : 1.5, chord = gull ? 0.2 : 0.17, L = gull ? 0.46 : 0.82;
+    const C1 = gull ? { body: '#f7f8f9', belly: '#eef1f4', wing: '#aeb7c0', tip: '#17191c', beak: '#f0bd2a', tail: '#f2f4f6' }
+                    : { body: '#f4f3ee', belly: '#ffffff', wing: '#2f3439', tip: '#1d2023', beak: '#e9cf9e', tail: '#2f3439' };
+    body(m, L, [[0, .02, .01], [.12, .042, .01], [.35, .07, 0], [.62, .074, .01], [.8, .058, .025], [.9, .05, .035], [1, .028, .035]], C1.body, C1.belly, 10);
+    const y = t => (t - 0.5) * L;
+    sphere(m, C1.body, [0, y(.9), .05], gull ? .055 : .07, 8, 6);                                                  // head
+    limb(m, C1.beak, [0, y(.98), .045], [0, y(1.12), .035], gull ? .022 : .03, gull ? .018 : .025);              // beak
+    sphere(m, '#111111', [.03, y(.94), .07], .009, 4, 3); sphere(m, '#111111', [-.03, y(.94), .07], .009, 4, 3);        // eyes
+    fan(m, C1.tail, [[0, y(.1), .02], [.1, y(-.12), .02], [0, y(-.08), .02], [-.1, y(-.12), .02]]);               // tail
+    const [a1d, a2d] = WING_FRAMES[frame], a1 = rad(a1d), a2 = rad(a1d + a2d);
+    const inner = half * 0.5, outer = half * 0.5, sweep = gull ? 0.1 : 0.06;
+    for (const sd of [-1, 1]) {
+      const root = [sd * 0.05, y(.62), .04], rootT = [sd * 0.05, y(.62) - chord, .04];
+      const wrist = [sd * (0.05 + inner * Math.cos(a1)), y(.62) - 0.02, .04 + inner * Math.sin(a1)], wristT = [wrist[0], wrist[1] - chord * 0.95, wrist[2]];
+      const dir = [sd * Math.cos(a2), 0, Math.sin(a2)];
+      const at = f => [wrist[0] + dir[0] * outer * f, wrist[1] - sweep * f, wrist[2] + dir[2] * outer * f];
+      const atT = f => { const p = at(f); return [p[0], p[1] - chord * (0.95 - 0.6 * f), p[2]]; };
+      quad(m, C1.wing, root, wrist, wristT, rootT);                                                              // arm
+      quad(m, C1.wing, wrist, at(0.62), atT(0.62), wristT);                                                      // hand
+      const tipP = at(1.0); fan(m, C1.tip, [at(0.62), [tipP[0], tipP[1] - chord * 0.2, tipP[2]], atT(0.95), atT(0.62)]);   // dark wing tip
+      if (gull) sphere(m, '#ffffff', [at(0.86)[0], at(0.86)[1] - chord * 0.18, at(0.86)[2] + 0.003], 0.018, 5, 3, 0.2);    // white "mirror" spot
+    }
+    return toGLB(m);
+  }
+  // Whale blow: a translucent white plume, 1 m tall (scale it up)
+  function spout() {
+    const m = newMesh(), p = prim(m, '#ffffff', { alpha: 0.45, rough: 1 }), n = 10;
+    const rings = [[0, .05], [.3, .18], [.6, .32], [.85, .42], [1, .3]];
+    for (let r = 0; r + 1 < rings.length; r++) for (let k = 0; k < n; k++) {
+      const a0 = k / n * 2 * Math.PI, a1 = (k + 1) / n * 2 * Math.PI, [z0, r0] = rings[r], [z1, r1] = rings[r + 1];
+      const P = (a, rr, z) => [Math.cos(a) * rr, Math.sin(a) * rr, z];
+      const A = P(a0, r0, z0), B = P(a1, r0, z0), C2 = P(a1, r1, z1), D = P(a0, r1, z1), i = p.pos.length / 3;
+      for (const v of [A, B, C2, D]) { p.pos.push(...v); const nv = norm([v[0], v[1], 0.3 * (Math.hypot(v[0], v[1]) || 1)]); p.nrm.push(...nv); }
+      p.idx.push(i, i + 1, i + 2, i, i + 2, i + 3);
+    }
+    return toGLB(m);
+  }
+
+  // ---- animated sea patch around the boat ----
+  // Waves repeat every PERIOD meters, so the patch can be re-centred without a visible jump.
+  const PERIOD = 60;
+  const WAVES = [[1, 0, .34, 0], [0, 1, .2, 1.3], [1, 1, .16, 2.1], [2, -1, .1, .7], [-1, 2, .08, 4.0], [3, 1, .05, 2.6], [-2, 3, .04, 5.1], [4, -3, .03, 1.9]];
+  function waveH(x, y, amp) {
+    let h = 0; for (const [kx, ky, a, ph] of WAVES) h += a * Math.sin(2 * Math.PI / PERIOD * (kx * x + ky * y) + ph); return h * amp;
+  }
+  async function sea(amp, color, alpha = 0.8, emissive = 0.5, size = 600, n = 100) {
+    const m = newMesh(), p = prim(m, color, { tex: 0, alpha, rough: 0.55, emissive });
+    const half = size / 2, step = size / n, e = 0.5;
+    let hmax = 0; for (const [, , a] of WAVES) hmax += a * amp;
+    for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) {
+      const x = -half + i * step, y = -half + j * step, z = waveH(x, y, amp);
+      const nx = -(waveH(x + e, y, amp) - waveH(x - e, y, amp)) / (2 * e), ny = -(waveH(x, y + e, amp) - waveH(x, y - e, amp)) / (2 * e);
+      const l = Math.hypot(nx, ny, 1); p.pos.push(x, y, z); p.nrm.push(nx / l, ny / l, 1 / l); p.uv.push(i / n, j / n);
+      const c = hmax ? 0.84 + 0.16 * (z / hmax + 1) / 2 : 1; p.col.push(c, c, Math.min(1, c * 1.03), 1);
+    }
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const a = j * (n + 1) + i, b = a + 1, c = a + n + 1, d = c + 1; p.idx.push(a, b, d, a, d, c); }
+    return toGLB(m, [await radialAlpha(0.45)]);
+  }
+
+  const waveMax = amp => WAVES.reduce((t, w) => t + w[2], 0) * amp;
+  return { waveMax, bird, rowerPose, strokeAt, dolphin, whale, spout, turtle, shark, seal, toDataURL, rowBoat, rower, oar, wake, cargo, tanker, ferry, fishing, sailboat, motorYacht, sea, waveH, PERIOD, PIN, SEAT };
+})();
+
+</script>
+<script>
+// =====================================================================
+// ROUTES. Every route was checked against a detailed coastline map
+// (points every 25 m) and stays on water. Waypoints are [lat, lon].
+// traffic: harbour | busy | medium | ocean     lane: how ships move
+// =====================================================================
+const ROUTES = [
+  { id:"hongkong", group:'quick', name:"Victoria Harbour: Tsim Sha Tsui → Central", start:"Tsim Sha Tsui", end:"Central, Hong Kong", traffic:'harbour', lane:'cross', spread:700,
+    pts:[[22.29349,114.16829],[22.28702,114.16202]] },
+  { id:"alcatraz", group:'quick', name:"Escape from Alcatraz → San Francisco", start:"Alcatraz Island", end:"Aquatic Park, San Francisco", traffic:'harbour', lane:'cross', spread:700,
+    pts:[[37.82844,-122.423],[37.81011,-122.42232],[37.81065,-122.42317],[37.80836,-122.42385]] },
+  { id:"liberty", group:'quick', name:"New York: Battery Park → Statue of Liberty", start:"Battery Park", end:"Liberty Island", traffic:'harbour', lane:'cross', spread:500,
+    pts:[[40.70106,-74.01842],[40.69352,-74.03442],[40.69082,-74.04277]] },
+  { id:"bosphorus1", group:'quick', name:"Bosphorus crossing: Üsküdar → Beşiktaş", start:"Üsküdar", end:"Beşiktaş", traffic:'harbour', lane:'cross', spread:600,
+    pts:[[41.02702,29.01103],[41.0405,29.00603]] },
+  { id:"oresund", group:'quick', name:"Øresund: Helsingør → Helsingborg", start:"Helsingør, Denmark", end:"Helsingborg, Sweden", traffic:'busy', lane:'cross', spread:1500,
+    pts:[[56.03646,12.61692],[56.03496,12.61925],[56.03385,12.62158],[56.04256,12.69041],[56.04184,12.69266]] },
+  { id:"dardanelles", group:'quick', name:"Dardanelles: Eceabat → Çanakkale", start:"Eceabat (Europe)", end:"Çanakkale (Asia)", traffic:'busy', lane:'cross', spread:1500,
+    pts:[[40.18376,26.36044],[40.15389,26.39806]] },
+  { id:"messina", group:'quick', name:"Strait of Messina: Messina → Villa San Giovanni", start:"Messina, Sicily", end:"Villa San Giovanni", traffic:'busy', lane:'cross', spread:1500,
+    pts:[[38.19466,15.56957],[38.19803,15.56271],[38.216,15.62987]] },
+  { id:"solent", group:'quick', name:"The Solent: Portsmouth → Ryde", start:"Portsmouth", end:"Ryde, Isle of Wight", traffic:'busy', lane:'cross', spread:2000,
+    pts:[[50.78009,-1.09492],[50.73989,-1.15882]] },
+  { id:"sydney", group:'medium', name:"Sydney Harbour: Circular Quay → Manly", start:"Circular Quay", end:"Manly", traffic:'harbour', lane:'along', spread:300,
+    pts:[[-33.86132,151.216],[-33.8545,151.21795],[-33.85001,151.23006],[-33.84749,151.2465],[-33.84749,151.2612],[-33.83294,151.2651],[-33.81803,151.27591],[-33.80617,151.28002]] },
+  { id:"bosphorus", group:'medium', name:"Whole Bosphorus: Black Sea → Maiden's Tower", start:"Black Sea entrance", end:"Maiden's Tower, Istanbul", traffic:'busy', lane:'along', spread:300,
+    pts:[[41.2281,29.13514],[41.20003,29.11486],[41.17937,29.09131],[41.17869,29.08445],[41.1605,29.07014],[41.16005,29.07193],[41.14007,29.06507],[41.12232,29.07372],[41.12008,29.07014],[41.10009,29.06001],[41.08482,29.05643],[41.08168,29.05762],[41.07,29.04898],[41.05697,29.04063],[41.05607,29.04003],[41.04507,29.03198],[41.03496,29.01707],[41.0271,29.00813],[41.02239,29.00485]] },
+  { id:"princes", group:'medium', name:"Istanbul: Kabataş → Büyükada", start:"Kabataş", end:"Büyükada, Princes' Islands", traffic:'busy', lane:'cross', spread:2500,
+    pts:[[41.03439,28.99606],[41.00987,28.99998],[40.96998,29.02425],[40.95947,29.04209],[40.95004,29.06992],[40.87997,29.11489],[40.87458,29.12416]] },
+  { id:"capri", group:'medium', name:"Bay of Naples: Sorrento → Capri", start:"Sorrento", end:"Capri", traffic:'medium', lane:'open', spread:3000,
+    pts:[[40.63198,14.37795],[40.63386,14.3744],[40.63602,14.34884],[40.62497,14.33003],[40.57996,14.26012],[40.55813,14.23882]] },
+  { id:"channel", group:'medium', name:"English Channel: Dover → Calais", start:"Dover", end:"Calais", traffic:'busy', lane:'cross', spread:3000,
+    pts:[[51.112,1.335],[50.975,1.845]] },
+  { id:"gibraltar", group:'medium', name:"Strait of Gibraltar: Tarifa → Tangier", start:"Tarifa", end:"Tangier", traffic:'busy', lane:'cross', spread:3000,
+    pts:[[35.99499,-5.60518],[35.79234,-5.807]] },
+  { id:"florida", group:'long', name:"Florida Straits: Havana → Key West", start:"Havana", end:"Key West", traffic:'medium', lane:'open', spread:4000,
+    pts:[[23.155,-82.36],[24.535,-81.8]] },
+  { id:"atlantic", group:'ocean', name:"Atlantic: La Gomera → Antigua", start:"La Gomera", end:"Antigua", traffic:'ocean', lane:'open', spread:4000,
+    pts:[[28.085,-17.105],[28,-17.15],[27.97,-17.4],[28.03,-18.35],[16.98,-61.55],[17,-61.762]] },
+  { id:"pacific", group:'ocean', name:"Pacific: Monterey → Honolulu", start:"Monterey", end:"Honolulu", traffic:'ocean', lane:'open', spread:4000,
+    pts:[[36.605,-121.89],[36.78,-122.05],[21.42,-157.45],[21.18,-157.62],[21.285,-157.855]] },
+  { id:"indian", group:'ocean', name:"Indian Ocean: Geraldton → Mauritius", start:"Geraldton", end:"Port Louis", traffic:'ocean', lane:'open', spread:4000,
+    pts:[[-28.775,114.6],[-28,113.9],[-20.8,57.5],[-20.44991,57.1999],[-20.2,57.30008],[-20.10999,57.41998],[-20.15598,57.4807]] },
+];
+const GROUPS = { quick: 'Quick (under 10 km)', medium: 'Medium (10–200 km)', long: 'Long', ocean: 'Ocean crossings' };
+
+// ---------- Geo math ----------
+const R = 6371008.8, rad = d => d * Math.PI / 180, deg = r => r * 180 / Math.PI;
+function gcDist(a, b) {
+  const [la1, lo1, la2, lo2] = [rad(a[0]), rad(a[1]), rad(b[0]), rad(b[1])];
+  const h = Math.sin((la2 - la1) / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin((lo2 - lo1) / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+function gcInterp(a, b, f) {
+  const d = gcDist(a, b) / R; if (d === 0) return a.slice();
+  const [la1, lo1, la2, lo2] = [rad(a[0]), rad(a[1]), rad(b[0]), rad(b[1])];
+  const A = Math.sin((1 - f) * d) / Math.sin(d), B = Math.sin(f * d) / Math.sin(d);
+  const x = A * Math.cos(la1) * Math.cos(lo1) + B * Math.cos(la2) * Math.cos(lo2);
+  const y = A * Math.cos(la1) * Math.sin(lo1) + B * Math.cos(la2) * Math.sin(lo2);
+  const z = A * Math.sin(la1) + B * Math.sin(la2);
+  return [deg(Math.atan2(z, Math.hypot(x, y))), deg(Math.atan2(y, x))];
+}
+function bearing(a, b) {
+  const [la1, lo1, la2, lo2] = [rad(a[0]), rad(a[1]), rad(b[0]), rad(b[1])];
+  const y = Math.sin(lo2 - lo1) * Math.cos(la2), x = Math.cos(la1) * Math.sin(la2) - Math.sin(la1) * Math.cos(la2) * Math.cos(lo2 - lo1);
+  return (deg(Math.atan2(y, x)) + 360) % 360;
+}
+// Move from p by local meters: fwd along heading h, right of heading
+function offset(p, h, fwd, right) {
+  const s = Math.sin(rad(h)), c = Math.cos(rad(h));
+  const east = fwd * s + right * c, north = fwd * c - right * s;
+  return [p[0] + north / 111320, p[1] + east / (111320 * Math.cos(rad(p[0])))];
+}
+// Local flat east/north meters around a reference point (used for the wave patch)
+const toENU = (ref, p) => [(p[1] - ref[1]) * 111320 * Math.cos(rad(ref[0])), (p[0] - ref[0]) * 111320];
+const fromENU = (ref, x, y) => [ref[0] + y / 111320, ref[1] + x / (111320 * Math.cos(rad(ref[0])))];
+function buildPath(pts) {
+  const line = [pts[0].slice()], cum = [0];
+  for (let i = 1; i < pts.length; i++) {
+    const d = gcDist(pts[i - 1], pts[i]), n = Math.max(1, Math.ceil(d / 1000));
+    for (let k = 1; k <= n; k++) { const p = gcInterp(pts[i - 1], pts[i], k / n); cum.push(cum[cum.length - 1] + gcDist(line[line.length - 1], p)); line.push(p); }
+  }
+  return { line, cum, total: cum[cum.length - 1] };
+}
+function posAt(path, m) {
+  m = Math.max(0, Math.min(path.total, m));
+  let lo = 0, hi = path.cum.length - 1;
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (path.cum[mid] <= m) lo = mid; else hi = mid; }
+  const seg = path.cum[hi] - path.cum[lo], f = seg ? (m - path.cum[lo]) / seg : 0;
+  return { p: gcInterp(path.line[lo], path.line[hi], f), idx: lo, hdg: bearing(path.line[lo], path.line[hi]) };
+}
+
+// ---------- Units & formatting ----------
+const UNITS = { km:{ f:1000, l:'km' }, mi:{ f:1609.344, l:'mi' }, nm:{ f:1852, l:'nm' } };
+let units = 'km';
+const fmtDist = (m, dp) => { const u = UNITS[units], v = m / u.f; const d = dp ?? (v < 100 ? 2 : v < 1000 ? 1 : 0); return v.toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d }) + ' ' + u.l; };
+const fmtTime = s => { s = Math.max(0, Math.round(s)); const h = Math.floor(s / 3600), mm = Math.floor(s % 3600 / 60), ss = s % 60; return (h ? h + ':' + String(mm).padStart(2, '0') : mm) + ':' + String(ss).padStart(2, '0'); };
+const fmtPace = s => { if (!isFinite(s) || s <= 0 || s > 599) return '–:––'; s = Math.round(s); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+const fmtLat = v => Math.abs(v).toFixed(4) + '° ' + (v >= 0 ? 'N' : 'S');
+const fmtLon = v => Math.abs(v).toFixed(4) + '° ' + (v >= 0 ? 'E' : 'W');
+const ftIn = cm => { const i = Math.round(cm / 2.54); return Math.floor(i / 12) + '′' + (i % 12) + '″'; };
+
+// ---------- Saved state (this browser) ----------
+const KEY = 'oceanrow.v1';
+const DEFAULT_KEY = 'AIzaSyDnn7_FE7u1UXWm3TBK7ifVVoCL-9YpIog';
+let save = { route: 'hongkong', units: 'km', voyages: {}, gkey: DEFAULT_KEY, heightCm: 0, hdgSign: 1, sound: true, vol: 0.7, voice: true, windOn: true };
+try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.voyages) save = Object.assign(save, s); } catch (_) {}
+const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (_) {} };
+const voyage = id => (save.voyages[id] ||= { meters: 0, sessions: [], finished: null });
+units = UNITS[save.units] ? save.units : 'km';
+if (!save.gkey) save.gkey = DEFAULT_KEY;
+
+// ---------- Height adjustment ----------
+// A rowing monitor measures the flywheel the same way for everyone, so a shorter
+// rower's shorter stroke moves the boat less. We scale distance up to what a
+// 183 cm (6 ft) rower would get for the same effort. Never scales down.
+const REF_HEIGHT = 183;
+const heightFactor = () => save.heightCm ? Math.min(1.3, Math.max(1, REF_HEIGHT / save.heightCm)) : 1;
+
+// ---------- Rower (FTMS Bluetooth) ----------
+const FTMS_SERVICE = 0x1826, ROWER_DATA = 0x2ad1, CONTROL_PT = 0x2ad9;
+const m = { spm: 0, strokes: 0, dist: null, pace: null, power: 0, hr: null };
+let source = null, lastPacketAt = 0, lastDevDist = null;
+
+function parseRowerData(dv) {
+  let i = 0; const flags = dv.getUint16(i, true); i += 2; const out = {};
+  if (!(flags & 0x0001)) { out.spm = dv.getUint8(i) / 2; i += 1; out.strokes = dv.getUint16(i, true); i += 2; }
+  if (flags & 0x0002) i += 1;
+  if (flags & 0x0004) { out.dist = dv.getUint16(i, true) | (dv.getUint8(i + 2) << 16); i += 3; }
+  if (flags & 0x0008) { out.pace = dv.getUint16(i, true); i += 2; }
+  if (flags & 0x0010) i += 2;
+  if (flags & 0x0020) { out.power = dv.getInt16(i, true); i += 2; }
+  if (flags & 0x0040) i += 2;
+  if (flags & 0x0080) i += 2;
+  if (flags & 0x0100) i += 5;
+  if (flags & 0x0200) { out.hr = dv.getUint8(i); i += 1; }
+  return out;
+}
+
+const $ = id => document.getElementById(id);
+function setStatus(t, cls) { $('status').textContent = t; $('status').className = cls || ''; }
+
+function handlePacket(dv) {
+  const d = parseRowerData(dv);
+  for (const k in d) m[k] = d[k];
+  lastPacketAt = performance.now();
+  if (source !== 'ble') startSession('ble');
+  if (d.dist != null) onDeviceDistance(d.dist);
+}
+
+// Bridge: ocean-row-bridge.py talks Bluetooth and streams the data here (any browser)
+let bridge = null, bridgeSeen = false;
+function connectBridge(manual) {
+  if (bridge) return;
+  try { bridge = new EventSource('/rower'); } catch (_) { bridge = null; return; }
+  bridge.onmessage = e => {
+    bridgeSeen = true;
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'data') {
+      const hex = msg.hex, bytes = new Uint8Array(hex.length / 2);
+      for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+      handlePacket(new DataView(bytes.buffer));
+    } else if (msg.type === 'status') {
+      setStatus(msg.text, msg.state === 'connected' ? 'ok' : msg.state === 'error' ? 'err' : '');
+      if (msg.state === 'disconnected' && source === 'ble') endSession();
+    }
+  };
+  bridge.onerror = () => {
+    if (!bridgeSeen) { bridge.close(); bridge = null; if (manual) setStatus('Start the helper first: run "python ocean-row-bridge.py", then open http://localhost:8000', 'err'); }
+    else setStatus('Lost contact with the helper program. Is it still running?', 'err');
+  };
+}
+
+async function connectBLE() {
+  if (!navigator.bluetooth) { connectBridge(true); return; }
+  try {
+    setStatus('Choose your rower in the popup…');
+    const dev = await navigator.bluetooth.requestDevice({ filters: [{ services: [FTMS_SERVICE] }], optionalServices: [FTMS_SERVICE] });
+    dev.addEventListener('gattserverdisconnected', () => { setStatus('Rower disconnected. Progress saved.', 'err'); endSession(); });
+    setStatus('Connecting…');
+    const svc = await (await dev.gatt.connect()).getPrimaryService(FTMS_SERVICE);
+    const ch = await svc.getCharacteristic(ROWER_DATA);
+    ch.addEventListener('characteristicvaluechanged', e => handlePacket(e.target.value));
+    await ch.startNotifications();
+    try { const cp = await svc.getCharacteristic(CONTROL_PT); await cp.startNotifications(); await cp.writeValue(Uint8Array.of(0x00)); await cp.writeValue(Uint8Array.of(0x07)); } catch (_) {}
+    startSession('ble');
+    setStatus(`Connected to ${dev.name || 'your rower'}. Start rowing!`, 'ok');
+  } catch (err) { setStatus('Connection failed: ' + err.message, 'err'); }
+}
+
+// ---------- Session ----------
+const sess = { active: false, paused: false, meters: 0, secs: 0, logIdx: -1 };
+let wakeLock = null;
+function startSession(kind) {
+  source = kind; lastDevDist = null;
+  Object.assign(sess, { active: true, paused: false, meters: 0, secs: 0, logIdx: -1 });
+  splitNext = 500; splitAt = 0; Object.assign(life, { base: 0, baseT: 0, push: 0, quiet: 0 });
+  $('btnPause').disabled = false;
+  try { navigator.wakeLock?.request('screen').then(l => wakeLock = l).catch(() => {}); } catch (_) {}
+}
+function endSession() { sess.active = false; if (source === 'ble') source = null; persist(); try { wakeLock?.release(); } catch (_) {} }
+
+function onDeviceDistance(dev) {
+  if (lastDevDist == null || dev < lastDevDist) { lastDevDist = dev; return; }
+  const delta = dev - lastDevDist; lastDevDist = dev;
+  if (delta > 0 && delta < 100) addMeters(delta);
+}
+
+const route = () => ROUTES.find(r => r.id === save.route) || ROUTES[0];
+let path = buildPath(route().pts);
+const currentMeters = () => source === 'sim' ? Math.min(path.total, voyage(save.route).meters + sess.meters) : voyage(save.route).meters;
+
+function addMeters(rawM) {
+  if (!sess.active || sess.paused || rawM <= 0) return;
+  const dm = rawM * heightFactor() * windFactor(curHdg);
+  if (source !== 'ble') {                       // simulator: show progress, never save
+    const b = currentMeters(); sess.meters += dm; const a = currentMeters();
+    checkMilestones(b, a);
+    if (b < path.total && a >= path.total) toast(`🎉 Land ho! You reached ${route().end} (simulator)`, 8000);
+    return;
+  }
+  sess.meters += dm;
+  const v = voyage(save.route);
+  if (v.finished) return;
+  const before = v.meters;
+  v.meters = Math.min(path.total, v.meters + dm);
+  if (sess.logIdx < 0) { v.sessions.unshift({ date: new Date().toISOString(), meters: 0, secs: 0 }); sess.logIdx = 0; }
+  v.sessions[sess.logIdx].meters = Math.round(sess.meters);
+  v.sessions[sess.logIdx].secs = Math.round(sess.secs);
+  checkMilestones(before, v.meters);
+  if (v.meters >= path.total && !v.finished) { v.finished = new Date().toISOString(); persist(); toast(`🎉 Land ho! You rowed all the way to ${route().end}!`, 12000, `Land ho! You rowed all the way to ${route().end}!`); }
+}
+
+// ---------- Milestones ----------
+function checkMilestones(before, after) {
+  const pb = before / path.total, pa = after / path.total;
+  for (const q of [0.1, 0.25, 0.5, 0.75, 0.9]) if (pb < q && pa >= q) toast(q === 0.5 ? '⛵ Halfway there!' : `🏁 ${Math.round(q * 100)}% of the voyage done!`, 6000, q === 0.5 ? 'Halfway there!' : `${Math.round(q * 100)} percent of the voyage done.`);
+  const left = path.total - after;
+  for (const km of [50, 10, 1]) if (path.total > km * 3000 && path.total - before > km * 1000 && left <= km * 1000) toast(`🏝️ ${km} km to ${route().end}! Look for land ahead.`, 6000, `${km} kilometer${km > 1 ? 's' : ''} to ${route().end}.`);
+  const a = posAt(path, before).p, b = posAt(path, after).p;
+  if (Math.sign(a[0]) !== Math.sign(b[0])) toast('🌐 You crossed the Equator!');
+  for (const [lat, name] of [[23.4365, 'Tropic of Cancer'], [-23.4365, 'Tropic of Capricorn']]) if ((a[0] - lat) * (b[0] - lat) < 0) toast(`☀️ You crossed the ${name}!`);
+  if (path.total > 100000 && Math.floor(a[1] / 5) !== Math.floor(b[1] / 5)) { const L = Math.round(b[1] / 5) * 5; toast(`🧭 Now at ${Math.abs(L)}°${L < 0 ? 'W' : L > 0 ? 'E' : ''} longitude`); }
+}
+let toastT;
+function toast(t, ms = 6000, say) { if (say) sfx.say(say); const el = $('toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), ms); }
+
+// ---------- Simulator ----------
+const sim = { times: [], power: 0 };
+function simStroke() {
+  if (source !== 'sim' || sess.paused) return;
+  const now = performance.now(); sim.times.push(now); sim.times = sim.times.filter(t => now - t < 6000);
+  sim.power = Math.min(sim.power + 90, 450); m.strokes++;
+}
+const powerToSpeed = p => p > 0 ? Math.cbrt(p / 2.8) : 0;
+function rawSpeed() {
+  if (source === 'ble' && performance.now() - lastPacketAt > 3000) return 0;
+  if (m.pace > 0 && m.pace < 600) return 500 / m.pace;
+  return powerToSpeed(m.power);
+}
+const speedNow = () => rawSpeed() * heightFactor() * windFactor(curHdg);
+
+// =====================================================================
+// GOOGLE MAPS: 3D view + 2D overview
+// =====================================================================
+let G = null, CORE = null, map3d = null, mini = null, miniRoute = null, miniDone = null, miniBoat = null, miniDots = [], P3 = null;
+let googleErr = '';
+const FILE_HELP = location.protocol === 'file:' ? ' You opened the file straight from your computer (file://). Google keys often refuse that. Run ocean-row-bridge.py and open http://localhost:8000 instead.' : '';
+const EXPLAIN = {
+  RefererNotAllowedMapError: 'This key isn\'t allowed on this web address.' + FILE_HELP,
+  InvalidKeyMapError: 'Google says the key isn\'t valid. Check it\'s copied fully, with no spaces.',
+  ApiNotActivatedMapError: 'Maps JavaScript API isn\'t turned on for this key. Turn it on in Google Cloud > APIs & Services.',
+  ApiTargetBlockedMapError: 'This key is restricted to other APIs. Allow Maps JavaScript API for it in Google Cloud.',
+  BillingNotEnabledMapError: 'Google wants billing turned on for this key/feature.',
+  OverQuotaMapError: 'The key\'s daily limit is used up. It resets tomorrow.',
+  ExpiredKeyMapError: 'This key has expired. Get a new one.',
+  MissingKeyMapError: 'No key was sent.',
+};
+function showSetup(err) { $('setup').classList.remove('hidden'); $('keyInput').value = save.gkey || ''; $('setupErr').textContent = err || ''; }
+function noteGoogleMsg(args) {
+  const t = args.map(a => (a && a.message) || String(a)).join(' ');
+  if (!/Google Maps|MapError|maps3d|googleapis/i.test(t)) return;
+  const code = (t.match(/([A-Za-z]+MapError)/) || [])[1];
+  googleErr = (code && EXPLAIN[code] ? EXPLAIN[code] + ' ' : '') + '(Google said: ' + t.replace(/\s+/g, ' ').slice(0, 220) + ')';
+  if (!$('setup').classList.contains('hidden') || !map3d) showSetup(googleErr);
+  setStatus(googleErr, 'err');
+}
+for (const k of ['error', 'warn']) { const orig = console[k].bind(console); console[k] = (...a) => { try { noteGoogleMsg(a); } catch (_) {} orig(...a); }; }
+window.gm_authFailure = () => setTimeout(() => showSetup(googleErr || ('Google rejected this key.' + FILE_HELP)), 300);
+
+function loadGoogle(key) {
+  ((g)=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({ key, v: 'weekly' });
+}
+
+async function initGoogle() {
+  setStatus('Loading Google Maps…');
+  try { G = await google.maps.importLibrary('maps'); CORE = await google.maps.importLibrary('core'); }
+  catch (e) { showSetup(googleErr || ('Couldn\'t load Google Maps (' + e.message + '). Check your internet connection.' + FILE_HELP)); return; }
+  const start = posAt(path, currentMeters());
+  try {
+    P3 = await google.maps.importLibrary('maps3d');
+    map3d = new P3.Map3DElement({ center: { lat: start.p[0], lng: start.p[1], altitude: 1 }, heading: start.hdg, tilt: 76, range: 45, mode: 'SATELLITE' });
+    try { map3d.defaultUIHidden = true; map3d.fov = 35; } catch (_) {}
+    $('view').prepend(map3d);
+    if (!P3.Model3DElement) setStatus('This Google Maps version has no 3D models, so the boat can\'t be shown.', 'err');
+  } catch (e) {
+    map3d = null;
+    setStatus('The 3D view didn\'t load: ' + (googleErr || e.message) + ' The 2D map still works.', 'err');
+  }
+  mini = new G.Map($('mini'), { center: { lat: start.p[0], lng: start.p[1] }, zoom: 8, mapTypeId: 'hybrid', disableDefaultUI: true, zoomControl: true, gestureHandling: 'greedy', clickableIcons: false });
+  mini.addListener('dragstart', () => miniTouchedAt = performance.now());
+  mini.addListener('zoom_changed', () => { if (!miniAutoZoom) miniTouchedAt = performance.now(); });
+  await buildModels();
+  buildScene();
+  if (!googleErr && map3d) setStatus('Ready. Connect your rower, or try the simulator.', 'ok');
+}
+
+// ---------- 2D overview ----------
+let miniTouchedAt = -1e9, miniAutoZoom = false;
+const arrow = () => ({ path: CORE.SymbolPath.FORWARD_CLOSED_ARROW, scale: 6, fillColor: '#ff9f43', fillOpacity: 1, strokeColor: '#ffffff', strokeWeight: 1.5 });
+function buildMini() {
+  if (!mini) return;
+  [miniRoute, miniDone, miniBoat, ...miniDots].forEach(x => x && x.setMap(null));
+  const toLL = a => ({ lat: a[0], lng: a[1] });
+  miniRoute = new G.Polyline({ map: mini, path: path.line.map(toLL), strokeColor: '#ffffff', strokeOpacity: .75, strokeWeight: 2 });
+  miniDone = new G.Polyline({ map: mini, path: [], strokeColor: '#ff9f43', strokeOpacity: 1, strokeWeight: 5 });
+  miniBoat = new G.Polyline({ map: mini, path: [], strokeOpacity: 0, icons: [{ icon: arrow(), offset: '100%' }] });
+  const r = route();
+  miniDots = [[r.pts[0], '#4cd98a'], [r.pts[r.pts.length - 1], '#ff5d5d']].map(([p, c]) =>
+    new G.Circle({ map: mini, center: toLL(p), radius: Math.max(25, path.total / 300), strokeColor: '#fff', strokeWeight: 1, fillColor: c, fillOpacity: 1 }));
+  fitMini();
+}
+let miniCheck = 0;
+function fitMini() {
+  if (!mini) return; miniAutoZoom = true;
+  if (path.total < 60000) { const b = new CORE.LatLngBounds(); path.line.forEach(p => b.extend({ lat: p[0], lng: p[1] })); mini.fitBounds(b, 20); }
+  else { const p = posAt(path, Math.min(dispMeters, path.total)).p; mini.setCenter({ lat: p[0], lng: p[1] }); mini.setZoom(path.total < 300000 ? 8 : 6); }
+  setTimeout(() => miniAutoZoom = false, 800);
+}
+function updateMini(pos, idx, hdg) {
+  if (!miniDone) return;
+  const ll = { lat: pos[0], lng: pos[1] };
+  miniDone.setPath(path.line.slice(0, idx + 1).map(a => ({ lat: a[0], lng: a[1] })).concat([ll]));
+  const back = offset(pos, hdg, -Math.max(8, path.total / 2000), 0);
+  miniBoat.setPath([{ lat: back[0], lng: back[1] }, ll]);
+  if (performance.now() - miniTouchedAt > 15000) {
+    if (path.total >= 60000) { mini.panTo(ll); if ((mini.getZoom?.() ?? 6) < 4) mini.setZoom(6); }
+    else if (++miniCheck % 20 === 0) { const b = mini.getBounds?.(); if (!b || !b.contains(ll) || (mini.getZoom?.() ?? 12) < 9) fitMini(); }
+  }
+}
+
+// ---------- 3D models (made in the browser, placed on Google's water surface) ----------
+const URLS = {}, POSES = 13;   // rower drawn in 13 positions through the stroke
+const SEA_STYLE = { harbour: { amp: 0.22, color: '#3d8c96' }, busy: { amp: 0.5, color: '#317b93' }, medium: { amp: 0.65, color: '#2d81a1' }, ocean: { amp: 1.0, color: '#24719b' } };
+// calm water: let more of Google's real water show through; rough water: more of our waves
+const seaAlpha = amp => 0.5 + 0.35 * Math.min(1, amp / 1.2);
+let builtSeaFor = '', builtRowerFor = 0;
+async function buildModels() {
+  const t = performance.now();
+  if (!URLS.boat) {
+    URLS.boat = MODELS.toDataURL(MODELS.rowBoat());
+    URLS.oarS = MODELS.toDataURL(MODELS.oar(1)); URLS.oarP = MODELS.toDataURL(MODELS.oar(-1));
+    URLS.gull = Array.from({ length: 5 }, (_, f) => MODELS.toDataURL(MODELS.bird('gull', f))); URLS.alb = Array.from({ length: 5 }, (_, f) => MODELS.toDataURL(MODELS.bird('albatross', f)));
+    URLS.oarSF = MODELS.toDataURL(MODELS.oar(1, true)); URLS.oarPF = MODELS.toDataURL(MODELS.oar(-1, true));
+    URLS.cargo0 = MODELS.toDataURL(MODELS.cargo(1)); URLS.cargo1 = MODELS.toDataURL(MODELS.cargo(2));
+    URLS.tanker = MODELS.toDataURL(MODELS.tanker()); URLS.ferry = MODELS.toDataURL(MODELS.ferry());
+    URLS.fish = MODELS.toDataURL(MODELS.fishing()); URLS.sail = MODELS.toDataURL(MODELS.sailboat());
+    URLS.sail2 = MODELS.toDataURL(MODELS.sailboat('#f2e3c6')); URLS.yacht = MODELS.toDataURL(MODELS.motorYacht());
+    URLS.dolphin = MODELS.toDataURL(MODELS.dolphin()); URLS.whale = MODELS.toDataURL(MODELS.whale()); URLS.spout = MODELS.toDataURL(MODELS.spout());
+    URLS.turtle = MODELS.toDataURL(MODELS.turtle()); URLS.shark = MODELS.toDataURL(MODELS.shark()); URLS.seal = MODELS.toDataURL(MODELS.seal());
+  }
+  const h = save.heightCm || 175;
+  if (builtRowerFor !== h) { URLS.rowers = Array.from({ length: POSES }, (_, i) => MODELS.toDataURL(MODELS.rowerPose(h / 100, i / (POSES - 1)))); builtRowerFor = h; }
+  const tr = route().traffic;
+  const amp = seaAmp ?? SEA_STYLE[tr].amp, key = tr + ':' + amp.toFixed(2);
+  if (builtSeaFor !== key) { URLS.sea = MODELS.toDataURL(await MODELS.sea(amp, SEA_STYLE[tr].color, seaAlpha(amp), 0.5)); builtSeaFor = key; }
+  console.log('[ocean-row] models ready in', Math.round(performance.now() - t), 'ms');
+}
+function model(url, extra = {}) {
+  const el = new P3.Model3DElement(Object.assign({ src: url, altitudeMode: 'RELATIVE_TO_MESH', orientation: { heading: 0, tilt: 0, roll: 0 }, scale: 1 }, extra));
+  map3d.append(el); return el;
+}
+const setPose = (el, p, alt, hdg, tilt = 0) => { el.position = { lat: p[0], lng: p[1], altitude: alt }; el.orientation = { heading: ((hdg * save.hdgSign) % 360 + 360) % 360, tilt, roll: 0 }; };
+
+// Traffic: deterministic per route, so the same ships are always in the same places
+function rng(seed) { let s = seed >>> 0; return () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function hashStr(s) { let h = 2166136261; for (const ch of s) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return h >>> 0; }
+const FLEET = {
+  harbour: [['ferry', .4], ['yacht', .2], ['sail', .15], ['sail2', .1], ['fish', .15]],
+  busy:    [['cargo0', .22], ['cargo1', .18], ['tanker', .15], ['ferry', .15], ['fish', .12], ['sail', .1], ['yacht', .08]],
+  medium:  [['cargo0', .15], ['ferry', .1], ['fish', .25], ['sail', .2], ['sail2', .15], ['yacht', .15]],
+  ocean:   [['cargo0', .3], ['cargo1', .2], ['tanker', .25], ['fish', .1], ['sail', .15]],
+};
+const SPEED = { cargo0: 7, cargo1: 7, tanker: 6, ferry: 8, fish: 3, sail: 3, sail2: 3, yacht: 6 };
+let ships = [], active = new Map(), boat = null;
+function buildTraffic() {
+  const r = route(), rand = rng(hashStr(r.id)); ships = [];
+  const spacing = { harbour: 350, busy: 1100, medium: 2500, ocean: 9000 }[r.traffic];
+  const pick = () => { let x = rand(); for (const [k, w] of FLEET[r.traffic]) { if ((x -= w) <= 0) return k; } return FLEET[r.traffic][0][0]; };
+  for (let d = Math.min(250, path.total * .2); d < path.total - 150; d += spacing) {
+    if (rand() > (r.traffic === 'ocean' ? 0.45 : 0.8)) continue;
+    const at = posAt(path, d + rand() * spacing * .4), kind = pick(), dir = rand() < .5 ? 1 : -1;
+    let base, hdg, run;
+    if (r.lane === 'cross') {        // ships travel along the strait, across your path
+      base = offset(at.p, at.hdg, 0, (rand() - .5) * 2 * r.spread * .5); hdg = (at.hdg + 90 * dir + (rand() - .5) * 16 + 360) % 360; run = r.spread;
+      base = offset(base, at.hdg, (rand() - .5) * 120, 0);
+    } else if (r.lane === 'along') { // narrow water: ships run parallel to your route, off to one side
+      base = offset(at.p, at.hdg, 0, dir * (70 + rand() * 90)); hdg = (at.hdg + (rand() < .5 ? 0 : 180)) % 360; run = r.spread;
+    } else {                         // open water
+      base = offset(at.p, at.hdg, 0, dir * (300 + rand() * r.spread)); hdg = rand() * 360; run = r.spread;
+    }
+    ships.push({ id: ships.length, kind, base, hdg, run, speed: SPEED[kind] * (0.75 + rand() * .5), d });
+  }
+}
+function shipPos(s, t) { const span = 2 * s.run, x = ((s.speed * t + s.id * 997) % span + span) % span - s.run; return offset(s.base, s.hdg, x, 0); }
+
+let seaEl = null, seaRef = null, boatPitch = 0;
+function buildScene() {
+  try { buildMini(); } catch (e) { console.log('[ocean-row] mini', e); }
+  if (!map3d || !P3?.Model3DElement) return;
+  try { buildSceneInner(); } catch (e) { console.log('[ocean-row] scene', e); setStatus('Scene problem: ' + e.message, 'err'); }
+}
+function buildSceneInner() {
+  crit.list.forEach(endEvent); crit.list = [];
+  for (const el of active.values()) el.remove(); active.clear(); despawnPod(); despawnWhale(); life.dolphins = life.whale = false;
+  if (boat) Object.values(boat).flat().forEach(el => el.remove());
+  if (seaEl) seaEl.remove();
+  seaEl = model(URLS.sea); seaRef = null;
+  boat = { hull: model(URLS.boat), rowers: URLS.rowers.map(u => model(u, { scale: 0.0001 })), oarS: model(URLS.oarS), oarP: model(URLS.oarP), oarSF: model(URLS.oarSF, { scale: 0.0001 }), oarPF: model(URLS.oarPF, { scale: 0.0001 }) };
+  buildTraffic();
+}
+async function rebuildRower() { if (!boat) return; await buildModels(); boat.rowers.forEach((el, i) => el.src = URLS.rowers[i]); }
+const show = (el, on) => { if (el._on !== on) { el.scale = on ? 1 : 0.0001; el._on = on; } };
+
+// Stroke cycle → oars sweep, rower slides
+let strokePhase = 1, lastStrokeCount = 0, lastStrokeAt = -1e9, releasedThisStroke = true, lastBob = 0, lastLift = 0, lastSweep = 0;
+function strokePose(dt, now) {
+  if (m.strokes !== lastStrokeCount) { lastStrokeCount = m.strokes; strokePhase = 0; lastStrokeAt = now; sfx.splash(0.6 + 0.4 * Math.min(1, (m.power || 100) / 250)); releasedThisStroke = false; }
+  const T = 60 / Math.max(14, Math.min(40, m.spm || 24));
+  if (now - lastStrokeAt > 4000) strokePhase = Math.min(strokePhase + dt, 1.0);   // resting
+  else strokePhase = (strokePhase + dt / T) % 1;
+  const ease = x => x * x * (3 - 2 * x), drive = 0.38;
+  const at = u => Object.assign(MODELS.strokeAt(u), { u });
+  if (now - lastStrokeAt > 4000) return Object.assign(at(0.72), { feather: false });          // resting, oars square on the water
+  if (strokePhase >= drive && !releasedThisStroke) { releasedThisStroke = true; sfx.release(); }
+  if (strokePhase < drive) return Object.assign(at(ease(strokePhase / drive)), { feather: false });
+  const r = (strokePhase - drive) / (1 - drive);
+  return Object.assign(at(1 - ease(r)), { feather: r > 0.06 && r < 0.84 });                  // blades turned flat on the way back
+}
+
+function updateScene(dt, now, at) {
+  if (!boat) return;
+  const amp = seaAmp ?? SEA_STYLE[route().traffic].amp, P = MODELS.PERIOD;
+  const lift = MODELS.waveMax(amp) + 0.05; lastLift = lift; curHdg = at.hdg;   // keep wave troughs above Google's own water surface
+  // Sea patch: snapped to the wave period around the boat, drifting slowly
+  if (!seaRef || gcDist(seaRef, at.p) > 20000) seaRef = at.p.slice();
+  const w0 = wx.here || {};
+  sea.head = (seaTravel() - 90 + 360) % 360; sea.speed = Math.max(1.5, Math.min(7, 0.78 * (w0.wavePer || 6)));
+  sea.drift = (sea.drift + sea.speed * dt) % P; sea.amp = amp; sea.lift = lift;
+  const [bE, bN] = toENU(seaRef, at.p), [bu, bv] = seaLocal(bE, bN);
+  const ou = Math.round(bu / P) * P, ov = Math.round(bv / P) * P, [oE, oN] = seaWorld(ou + sea.drift, ov); sea.ou = ou; sea.ov = ov;
+  const nearShore = gcDist(at.p, route().pts[0]) < 150 || gcDist(at.p, route().pts[route().pts.length - 1]) < 150;
+  seaEl.position = { ...(([la, lo]) => ({ lat: la, lng: lo }))(fromENU(seaRef, oE, oN)), altitude: lift };
+  seaEl.orientation = { heading: ((sea.head * save.hdgSign) % 360 + 360) % 360, tilt: 0, roll: 0 };
+  seaEl.scale = nearShore ? 0.0001 : 1;
+  const wx0 = bu - ou - sea.drift, wy0 = bv - ov, bob = lift + MODELS.waveH(wx0, wy0, amp); lastBob = bob;
+  const fx = Math.sin(rad(at.hdg - sea.head)), fy = Math.cos(rad(at.hdg - sea.head));
+  const slope = (MODELS.waveH(wx0 + fx * 2, wy0 + fy * 2, amp) - MODELS.waveH(wx0 - fx * 2, wy0 - fy * 2, amp)) / 4;
+  boatPitch += (deg(Math.atan(slope)) * 0.8 - boatPitch) * Math.min(1, dt * 3); const tl = noseUp(boatPitch);
+  // Boat, rower, oars
+  const hdg = at.hdg, pose = strokePose(dt, now);
+  setPose(boat.hull, at.p, bob, hdg, tl);
+  const sH = (save.heightCm || 175) / 175, pi = Math.round(pose.u * (POSES - 1)), uq = pi / (POSES - 1);
+  boat.rowers.forEach((el, i) => { if (i === pi) setPose(el, offset(at.p, hdg, MODELS.SEAT.y + MODELS.strokeAt(uq).slide * sH, 0), bob + MODELS.SEAT.z, hdg, tl); show(el, i === pi); });
+  lastSweep = pose.sweep;
+  const [oS, oP] = pose.feather ? [boat.oarSF, boat.oarPF] : [boat.oarS, boat.oarP], [hS, hP] = pose.feather ? [boat.oarS, boat.oarP] : [boat.oarSF, boat.oarPF];
+  setPose(oS, offset(at.p, hdg, MODELS.PIN.y, MODELS.PIN.x), bob + MODELS.PIN.z, hdg - pose.sweep); show(oS, true); show(hS, false);
+  setPose(oP, offset(at.p, hdg, MODELS.PIN.y, -MODELS.PIN.x), bob + MODELS.PIN.z, hdg + pose.sweep); show(oP, true); show(hP, false);
+  updateLifeModels(dt, at, lift);
+  // Ships within 12 km
+  if ((shipT += dt) > 0.2) {
+    shipT = 0;
+    for (const s of ships) {
+      const near = Math.abs(s.d - dispMeters) < 12000;
+      if (near && !active.has(s.id)) active.set(s.id, model(URLS[s.kind]));
+      if (!near && active.has(s.id)) { active.get(s.id).remove(); active.delete(s.id); }
+      if (near) setPose(active.get(s.id), shipPos(s, clock), lift * 0.8, s.hdg);
+    }
+  }
+}
+
+// ---------- Camera director (no clicking needed) ----------
+const VIEWS = {
+  chase: { name: 'Chase', dh: 0, tilt: 77, range: 26, ahead: 0, alt: 1.2 },
+  fpv:   { name: 'First person', dh: 0, tilt: 87, range: 30, ahead: 30, alt: 1.3 },
+  side:  { name: 'Side', dh: 90, tilt: 80, range: 17, ahead: 0, alt: 1 },
+  drone: { name: 'Drone', dh: 25, tilt: 62, range: 140, ahead: 0, alt: 1 },
+  back:  { name: 'Looking back', dh: 180, tilt: 83, range: 26, ahead: 0, alt: 1 },
+  orbit: { name: 'Look around', dh: 0, tilt: 75, range: 45, ahead: 0, alt: 1 },
+};
+const AUTO = [['chase', 60], ['drone', 16], ['chase', 45], ['side', 14]];   // first person & look back only when you pick them
+let forced = null, cam = { h: 0, tilt: 76, range: 45, alt: 1 }, rowingFor = 0, clock = 0, lastViewName = '';
+function pickView(t) {
+  if (forced) return forced;
+  if (rowingFor < 3) return 'orbit';
+  const total = AUTO.reduce((a, [, s]) => a + s, 0); let x = t % total;
+  for (const [v, s] of AUTO) { if (x < s) return v; x -= s; }
+  return 'chase';
+}
+const angDiff = (a, b) => ((b - a + 540) % 360) - 180;
+function updateCamera(dt, pos, hdg) {
+  const vName = pickView(clock), v = VIEWS[vName];
+  if (v.name !== lastViewName) { lastViewName = v.name; $('camLabel').textContent = 'Camera: ' + v.name + (forced ? '' : ' (auto)'); }
+  const sway = vName === 'chase' && !forced ? Math.sin(clock * 0.045) * 14 : 0;   // slow cinematic drift
+  const targetH = vName === 'orbit' ? (hdg + 180 + clock * 4) % 360 : (hdg + v.dh + sway + 360) % 360;
+  const k = Math.min(1, dt * 1.2);
+  cam.h = (cam.h + angDiff(cam.h, targetH) * k + 360) % 360;
+  cam.tilt += (v.tilt - cam.tilt) * k; cam.range += (v.range - cam.range) * k; cam.alt += (v.alt - cam.alt) * k;
+  const c = v.ahead ? offset(pos, hdg, v.ahead, 0) : pos;
+  if (!map3d) return;
+  Object.assign(camState, { lat: c[0], lng: c[1], alt: cam.alt, h: cam.h, tilt: cam.tilt, range: cam.range });
+  map3d.center = { lat: c[0], lng: c[1], altitude: cam.alt };   // meters above mean sea level
+  map3d.heading = cam.h; map3d.tilt = cam.tilt; map3d.range = cam.range;
+}
+
+// =====================================================================
+// REAL WEATHER at the boat (Open-Meteo: free, no key, covers open ocean)
+// =====================================================================
+const WMO = c => c == null ? ['–', '🌡️'] : c === 0 ? ['Clear', '☀️'] : c <= 2 ? ['Partly cloudy', '⛅'] : c === 3 ? ['Overcast', '☁️'] : c <= 48 ? ['Fog', '🌫️']
+  : c <= 57 ? ['Drizzle', '🌦️'] : c <= 67 ? ['Rain', '🌧️'] : c <= 77 ? ['Snow', '🌨️'] : c <= 82 ? ['Showers', '🌦️'] : c <= 86 ? ['Snow showers', '🌨️'] : ['Thunderstorm', '⛈️'];
+const COMPASS = d => ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round((((d % 360) + 360) % 360) / 45) % 8];
+const wx = { byRoute: {}, here: null, ok: false };
+const asList = j => Array.isArray(j) ? j : [j];
+const PATHS = {}; const pathOf = r => (PATHS[r.id] ||= buildPath(r.pts));
+async function fetchWx(points) {
+  const lat = points.map(p => p[0].toFixed(3)).join(','), lon = points.map(p => p[1].toFixed(3)).join(',');
+  const url = vars => `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=${vars}&daily=sunrise,sunset&timezone=auto&forecast_days=1`;
+  const base = 'temperature_2m,is_day,weather_code,cloud_cover,precipitation,wind_speed_10m,wind_direction_10m,wind_gusts_10m';
+  let j = await fetch(url(base + ',visibility')).then(r => r.json());
+  if (j && j.error) j = await fetch(url(base)).then(r => r.json());          // fall back if a value isn't offered
+  if (j && j.error) throw new Error(j.reason || 'weather service error');
+  const f = asList(j);
+  let mar = []; try { mar = asList(await fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&current=wave_height,wave_direction,wave_period`).then(r => r.json())); } catch (_) {}
+  return f.map((x, i) => { const c = (x && x.current) || {}, mc = (mar[i] && mar[i].current) || {};
+    return { temp: c.temperature_2m, isDay: c.is_day, code: c.weather_code, cloud: c.cloud_cover ?? 0, precip: c.precipitation ?? 0,
+      wind: c.wind_speed_10m, windDir: c.wind_direction_10m, gust: c.wind_gusts_10m, vis: c.visibility, wave: mc.wave_height, waveDir: mc.wave_direction, wavePer: mc.wave_period,
+      utcOff: (x && x.utc_offset_seconds) || 0, sunrise: x?.daily?.sunrise?.[0], sunset: x?.daily?.sunset?.[0] }; });
+}
+async function refreshWeather() {
+  try {
+    const pts = ROUTES.map(r => r.id === save.route ? posAt(path, Math.min(dispMeters, path.total)).p : posAt(pathOf(r), voyage(r.id).meters).p);
+    const res = await fetchWx(pts);
+    ROUTES.forEach((r, i) => wx.byRoute[r.id] = res[i]);
+    wx.here = wx.byRoute[save.route]; wx.ok = true;
+    fillRouteSelect(); renderWxNow(); applySeaState();
+  } catch (e) { $('wxNow').textContent = 'Live weather unavailable right now (' + e.message + ').'; }
+}
+const windUnit = () => units === 'mi' ? ['mph', 0.621371] : units === 'nm' ? ['kn', 0.539957] : ['km/h', 1];
+const fmtWind = kmh => { const [u, f] = windUnit(); return Math.round(kmh * f) + ' ' + u; };
+const fmtTemp = c => c == null ? '–' : units === 'mi' ? Math.round(c * 9 / 5 + 32) + '°F' : Math.round(c) + '°C';
+const localTime = w => new Date(Date.now() + w.utcOff * 1000).toISOString().slice(11, 16);
+function wxShort(w) {
+  if (!w) return '';
+  const [, icon] = WMO(w.code);
+  return ` — ${w.isDay ? '' : '🌙 '}${localTime(w)} · ${icon} ${fmtTemp(w.temp)} · 💨 ${w.wind == null ? '–' : fmtWind(w.wind) + ' ' + COMPASS(w.windDir)}`;
+}
+function renderWxNow() {
+  const w = wx.here; if (!w) { $('wxNow').textContent = 'Getting live weather…'; return; }
+  const [desc, icon] = WMO(w.code), wf = windFactor(curHdg);
+  const effect = !save.windOn ? '' : wf > 1.005 ? ` → tailwind, +${Math.round((wf - 1) * 100)}%` : wf < 0.995 ? ` → headwind, −${Math.round((1 - wf) * 100)}%` : ' → crosswind';
+  const sun = w.isDay ? (w.sunset ? `sunset ${w.sunset.slice(11, 16)}` : 'day') : (w.sunrise ? `sunrise ${w.sunrise.slice(11, 16)}` : 'night');
+  $('wxNow').innerHTML = `${icon} <b>${desc}</b>, ${fmtTemp(w.temp)} · wind ${w.wind == null ? '–' : fmtWind(w.wind) + ' from ' + COMPASS(w.windDir)}${effect}` +
+    `${w.wave != null ? ` · waves ${w.wave.toFixed(1)} m` : ''} · local time ${localTime(w)} (${w.isDay ? 'day' : 'night'}, ${sun})`;
+}
+// Head/tail wind changes boat speed a little (max ±12%)
+let curHdg = 0;
+function windFactor(hdg) {
+  const w = wx.here; if (!save.windOn || !w || w.wind == null || w.windDir == null) return 1;
+  const head = w.wind * Math.cos(rad(w.windDir - hdg));          // km/h blowing against you (+) or behind you (−)
+  return 1 - Math.max(-0.12, Math.min(0.12, head * 0.004));
+}
+// Real wave height sets our swell (Hs ≈ crest to trough)
+let seaAmp = null;
+function applySeaState() {
+  const st = SEA_STYLE[route().traffic], h = wx.here?.wave;
+  const amp = h != null ? Math.max(0.1, Math.min(1.6, h / 2)) : st.amp;
+  if (seaAmp == null || Math.abs(amp - seaAmp) > Math.max(0.08, seaAmp * 0.2)) { seaAmp = amp; if (map3d) buildModels().then(() => { if (seaEl) seaEl.src = URLS.sea; }); }
+}
+
+// =====================================================================
+// SUN: real day / dusk / night at the boat's position
+// =====================================================================
+function sunElevation(lat, lon, date = new Date()) {
+  const d = date / 86400000 + 2440587.5 - 2451545.0;
+  const g = rad((357.529 + 0.98560028 * d) % 360), q = (280.459 + 0.98564736 * d) % 360;
+  const L = rad(q + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g)), e = rad(23.439 - 0.00000036 * d);
+  const ra = Math.atan2(Math.cos(e) * Math.sin(L), Math.cos(L)), dec = Math.asin(Math.sin(e) * Math.sin(L));
+  const gmst = (18.697374558 + 24.06570982441908 * d) % 24, ha = rad(gmst * 15 + lon - deg(ra));
+  return deg(Math.asin(Math.sin(rad(lat)) * Math.sin(dec) + Math.cos(rad(lat)) * Math.cos(dec) * Math.cos(ha)));
+}
+const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+let darkness = 0, sunElev = 45;
+
+// =====================================================================
+// EFFECTS LAYER: night shading, stars, ship lights, rain, fog, lightning
+// The camera is ours, so we can project 3D points to the screen exactly
+// (Google's fov is vertical, 35° by default).
+// =====================================================================
+const camState = { lat: 0, lng: 0, alt: 1, h: 0, tilt: 76, range: 45 };
+const FOV = 35;
+function projector() {
+  const el = $('fx'), W = el.clientWidth, H = el.clientHeight;
+  const T = rad(camState.tilt), Hh = rad(camState.h), f = [Math.sin(T) * Math.sin(Hh), Math.sin(T) * Math.cos(Hh), -Math.cos(T)];
+  const r = [Math.cos(Hh), -Math.sin(Hh), 0], u = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]];
+  const camP = [-camState.range * f[0], -camState.range * f[1], camState.alt - camState.range * f[2]], ref = [camState.lat, camState.lng];
+  const k = (H / 2) / Math.tan(rad(FOV / 2));
+  const dir = v => { const z = v[0] * f[0] + v[1] * f[1] + v[2] * f[2]; if (z <= 0.01) return null; return [W / 2 + k * (v[0] * r[0] + v[1] * r[1] + v[2] * r[2]) / z, H / 2 - k * (v[0] * u[0] + v[1] * u[1] + v[2] * u[2]) / z, z]; };
+  return { W, H, dir, point: (lat, lng, alt) => {
+    const [x, y] = toENU(ref, [lat, lng]), dx = x - camP[0], dy = y - camP[1], dist2 = dx * dx + dy * dy;
+    return dir([dx, dy, alt - dist2 / (2 * R) - camP[2]]);      // includes Earth's curvature
+  } };
+}
+const LC = { W: '255,248,225', R: '255,70,60', G: '70,255,140', A: '255,190,90' };
+const SHIP_LIGHTS = {
+  boat: [[0, -3.3, 2.95, 'W', 1], [0, -2.0, 1.1, 'A', .6], [0, -2.9, 1.1, 'A', .6]],
+  cargo0: [[0, 30, 38, 'W', 1.6], [0, -55, 46, 'W', 1.6], [-12.5, -49.5, 26, 'R', 1.4], [12.5, -49.5, 26, 'G', 1.4], [0, -75, 12, 'W', 1], ...[-8, -5, -2, 1, 4, 7].map(x => [x, -47.8, 23.5, 'A', .7]), [10, 10, 21, 'W', .8], [-10, 30, 21, 'W', .8]],
+  tanker: [[0, 60, 30, 'W', 1.6], [0, -90, 40, 'W', 1.6], [-13, -80, 24, 'R', 1.4], [13, -80, 24, 'G', 1.4], ...[-10, -6, -2, 2, 6, 10].map(x => [x, -77.8, 26.5, 'A', .7]), [0, 20, 12, 'W', .9]],
+  ferry: [[0, 10, 17, 'W', 1.3], [-7, -20, 13, 'R', 1.1], [7, -20, 13, 'G', 1.1], ...[0, 1, 2].flatMap(k => [-26, -20, -14, -8, -2, 4, 10, 16].filter(y => y < 24 - k * 7).flatMap(y => [[-(6.65 - k * .6), y, 6 + k * 2.8, 'A', .55], [6.65 - k * .6, y, 6 + k * 2.8, 'A', .55]]))],
+  fish: [[0, -0.5, 9.5, 'W', 2.2], [0, -5, 6, 'W', 1.3], [-2.4, 4, 5.6, 'R', .8], [2.4, 4, 5.6, 'G', .8], [0, 6.1, 6.3, 'A', .8]],
+  sail: [[0, .6, 16.2, 'W', 1], [-.7, 5, 1.6, 'R', .7], [.7, 5, 1.6, 'G', .7], [0, -.5, 1.9, 'A', .5]],
+  yacht: [[0, -1, 6, 'W', 1], [-2.5, 6, 2.6, 'R', .8], [2.5, 6, 2.6, 'G', .8], ...[-4, -2.5, -1, .5, 2].flatMap(y => [[-2.15, y, 2.7, 'A', .5], [2.15, y, 2.7, 'A', .5]])],
+};
+SHIP_LIGHTS.cargo1 = SHIP_LIGHTS.cargo0; SHIP_LIGHTS.sail2 = SHIP_LIGHTS.sail;
+const STARS = (() => { let x = 20261026; const r = () => (x = (x * 1664525 + 1013904223) >>> 0) / 4294967296; return Array.from({ length: 260 }, () => [r() * 360, deg(Math.asin(0.05 + r() * 0.95)), 0.25 + r() * 0.75]); })();
+const rain = [];
+let flashUntil = 0, nextFlash = 0, lastShade = '', lastFilter = '';
+function drawFX(now, at) {
+  const cv = $('fx'), g = cv.getContext('2d'), dpr = Math.min(2, devicePixelRatio || 1);
+  if (cv.width !== Math.round(cv.clientWidth * dpr) || cv.height !== Math.round(cv.clientHeight * dpr)) { cv.width = Math.round(cv.clientWidth * dpr); cv.height = Math.round(cv.clientHeight * dpr); }
+  g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, cv.clientWidth, cv.clientHeight);
+  const P = projector(), w = wx.here || {}, code = w.code ?? 0;
+  // --- shade the whole scene: overcast, golden hour, dusk, night ---
+  sunElev = sunElevation(at.p[0], at.p[1]);
+  darkness = 1 - smooth(-8, 3, sunElev);
+  const golden = smooth(-2, 3, sunElev) * (1 - smooth(4, 14, sunElev));
+  const over = Math.min(1, (w.cloud || 0) / 100) * 0.28 + (code >= 45 ? 0.08 : 0) + (code >= 61 ? 0.1 : 0);
+  const shadeCss = now < flashUntil ? 'rgba(235,240,255,.55)' : `rgba(8,16,44,${(0.68 * darkness).toFixed(3)})`;
+  if (shadeCss !== lastShade) { $('shade').style.background = shadeCss; lastShade = shadeCss; }
+  const filt = `brightness(${(1 - over * 0.35 - golden * 0.05).toFixed(2)}) saturate(${(1 - over * 0.9 + golden * 0.3).toFixed(2)}) sepia(${(golden * 0.35).toFixed(2)})`;
+  if (map3d && filt !== lastFilter) { map3d.style.filter = filt; lastFilter = filt; }
+  drawSky(g, P, at, golden);
+  // --- stars ---
+  if (darkness > 0.55 && (w.cloud ?? 0) < 75) {
+    const a = (darkness - 0.55) / 0.45 * (1 - (w.cloud || 0) / 90);
+    for (const [az, el, b] of STARS) { const ce = Math.cos(rad(el)), s = P.dir([ce * Math.sin(rad(az)), ce * Math.cos(rad(az)), Math.sin(rad(el))]);
+      if (s && s[0] > 0 && s[0] < P.W && s[1] > 0) { g.fillStyle = `rgba(255,255,240,${(a * b).toFixed(3)})`; g.fillRect(s[0], s[1], 1.4, 1.4); } }
+  }
+  drawSea(g, P, at);
+  drawMoonPath(g, P, at);
+  drawParticles(g, P);
+  drawCritters(g, P, at, now);
+  // --- lights on ships and your boat ---
+  if (darkness > 0.25 && boat) {
+    const li = Math.min(1, (darkness - 0.25) / 0.5);
+    const lights = [];
+    const addLights = (kind, p, hdg, alt) => { for (const [x, y, z, col, sz] of SHIP_LIGHTS[kind] || []) { const q = offset(p, hdg, y, x); lights.push([q, alt + z, col, sz]); } };
+    addLights('boat', at.p, at.hdg, lastBob);
+    for (const s of ships) if (active.has(s.id)) addLights(s.kind, shipPos(s, clock), s.hdg, lastLift * 0.8);
+    g.globalCompositeOperation = 'lighter';
+    for (const [q, alt, col, sz] of lights) {
+      const s = P.point(q[0], q[1], alt); if (!s) continue;
+      const r0 = Math.max(1.1, Math.min(9, sz * 900 / s[2])), fog = w.vis != null && w.vis < 3000 ? 0.5 : 1;
+      if (!okNum(s[0], s[1], r0)) continue;
+      const grd = g.createRadialGradient(s[0], s[1], 0, s[0], s[1], r0 * 4);
+      grd.addColorStop(0, `rgba(${LC[col]},${(0.95 * li * fog).toFixed(3)})`); grd.addColorStop(0.25, `rgba(${LC[col]},${(0.45 * li * fog).toFixed(3)})`); grd.addColorStop(1, `rgba(${LC[col]},0)`);
+      g.fillStyle = grd; g.fillRect(s[0] - r0 * 4, s[1] - r0 * 4, r0 * 8, r0 * 8);
+    }
+    g.globalCompositeOperation = 'source-over';
+  }
+  // --- fog / haze toward the horizon ---
+  const vis = w.vis ?? 20000, fogA = code === 45 || code === 48 ? 0.55 : vis < 1000 ? 0.55 : vis < 4000 ? 0.3 : vis < 10000 ? 0.12 : 0;
+  if (fogA) {
+    const hy0 = P.H / 2 - Math.tan(rad(90 - camState.tilt)) * (P.H / 2) / Math.tan(rad(FOV / 2)), hy = Number.isFinite(hy0) ? hy0 : P.H / 2;
+    const fc = darkness > 0.5 ? '40,50,70' : '215,222,230', grd = g.createLinearGradient(0, hy - P.H * 0.25, 0, P.H);
+    grd.addColorStop(0, `rgba(${fc},0)`); grd.addColorStop(0.25, `rgba(${fc},${fogA})`); grd.addColorStop(1, `rgba(${fc},${fogA * 0.35})`);
+    g.fillStyle = grd; g.fillRect(0, 0, P.W, P.H);
+  }
+  // --- rain / snow ---
+  const snowing = code >= 71 && code <= 86 && !(code >= 80 && code <= 82);
+  const want = code >= 51 ? Math.min(450, 60 + (w.precip || 0.3) * 160) : 0;
+  while (rain.length < want) rain.push([Math.random() * P.W, Math.random() * P.H, 0.6 + Math.random() * 0.8]);
+  rain.length = Math.min(rain.length, Math.round(want));
+  if (rain.length) {
+    const side = w.windDir != null ? Math.sin(rad(w.windDir + 180 - camState.h)) * Math.min(1, (w.wind || 0) / 40) : 0;
+    g.strokeStyle = snowing ? 'rgba(255,255,255,.8)' : darkness > .5 ? 'rgba(170,190,220,.35)' : 'rgba(220,230,240,.45)'; g.lineWidth = snowing ? 2.2 : 1;
+    g.beginPath();
+    for (const d of rain) {
+      const sp = snowing ? 1.2 : 14 * d[2];
+      d[1] += sp; d[0] += side * sp * 0.6 + (snowing ? Math.sin(now / 700 + d[2] * 9) * 0.5 : 0);
+      if (d[1] > P.H) { d[1] = -10; d[0] = Math.random() * P.W; } if (d[0] < 0) d[0] += P.W; if (d[0] > P.W) d[0] -= P.W;
+      if (snowing) { g.moveTo(d[0], d[1]); g.lineTo(d[0] + .5, d[1] + .5); } else { g.moveTo(d[0], d[1]); g.lineTo(d[0] - side * 8, d[1] - 16 * d[2]); }
+    }
+    g.stroke();
+  }
+  // --- lightning ---
+  if (code >= 95) {
+    if (!nextFlash) nextFlash = now + 4000 + Math.random() * 12000;
+    if (now > nextFlash) { flashUntil = now + 90 + Math.random() * 120; nextFlash = now + 6000 + Math.random() * 14000; setTimeout(() => sfx.thunder(), 800 + Math.random() * 2500); }
+  }
+}
+
+// =====================================================================
+// SOUND: all made live with the Web Audio API (no sound files)
+// =====================================================================
+const sfx = (() => {
+  let ctx = null, master = null, noise = null; const beds = {};
+  function init() {
+    if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
+    try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) { return; }
+    master = ctx.createGain(); master.gain.value = 0; master.connect(ctx.destination);
+    noise = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate); const d = noise.getChannelData(0);
+    let b = 0; for (let i = 0; i < d.length; i++) { const wv = Math.random() * 2 - 1; b = (b + 0.02 * wv) / 1.02; d[i] = wv * 0.5 + b * 6; }   // white + brown mix
+    const bed = (type, freq, q) => { const s = ctx.createBufferSource(); s.buffer = noise; s.loop = true; s.playbackRate.value = 0.7 + Math.random() * 0.3;
+      const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q; const gn = ctx.createGain(); gn.gain.value = 0;
+      s.connect(f); f.connect(gn); gn.connect(master); s.start(); return { gn, f }; };
+    beds.sea = bed('lowpass', 520, 0.6); beds.wash = bed('bandpass', 900, 0.5); beds.wind = bed('bandpass', 1100, 0.9); beds.rain = bed('highpass', 3000, 0.4);
+  }
+  const ready = () => ctx && ctx.state === 'running';
+  const t0 = () => ctx.currentTime;
+  function env(node, peak, a, d, at = t0()) { node.gain.setValueAtTime(0.0001, at); node.gain.exponentialRampToValueAtTime(peak, at + a); node.gain.exponentialRampToValueAtTime(0.0001, at + a + d); }
+  function burst(type, freq, q, peak, a, d, rate = 1) {
+    const s = ctx.createBufferSource(); s.buffer = noise; s.playbackRate.value = rate; const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+    const gn = ctx.createGain(); s.connect(f); f.connect(gn); gn.connect(master); env(gn, peak, a, d); s.start(t0(), Math.random() * 2, a + d + 0.05); return f;
+  }
+  function tone(type, f0, f1, peak, a, d, at = t0(), dest = master) {
+    const o = ctx.createOscillator(); o.type = type; o.frequency.setValueAtTime(f0, at); o.frequency.exponentialRampToValueAtTime(f1, at + a + d);
+    const gn = ctx.createGain(); o.connect(gn); gn.connect(dest); env(gn, peak, a, d, at); o.start(at); o.stop(at + a + d + 0.05);
+  }
+  return {
+    init, ready,
+    update(state) {   // called a few times a second
+      if (!ctx) return;
+      const on = save.sound ? save.vol : 0, now = t0();
+      master.gain.setTargetAtTime(on, now, 0.3);
+      const swell = 0.5 + 0.5 * Math.sin(now * 0.9) * Math.sin(now * 0.37 + 1);
+      beds.sea.gn.gain.setTargetAtTime(0.10 + 0.12 * Math.min(1, state.amp), now, 0.5);
+      beds.wash.gn.gain.setTargetAtTime((0.02 + 0.06 * swell) * (0.4 + Math.min(1, state.amp)), now, 0.3);
+      const wind = Math.min(1, (state.wind || 0) / 45), gust = 0.7 + 0.3 * Math.sin(now * 0.6) * Math.sin(now * 1.7);
+      beds.wind.gn.gain.setTargetAtTime(0.11 * wind * gust, now, 0.4); beds.wind.f.frequency.setTargetAtTime(700 + 900 * wind * gust, now, 0.4);
+      beds.rain.gn.gain.setTargetAtTime(state.rain ? Math.min(0.12, 0.03 + state.rain * 0.03) : 0, now, 0.8);
+    },
+    splash(strength = 1) { if (!ready()) return; burst('bandpass', 1300, 0.8, 0.35 * strength, 0.01, 0.32, 0.9); burst('lowpass', 380, 0.7, 0.25 * strength, 0.02, 0.4, 0.6); },
+    release() { if (!ready()) return; burst('highpass', 2500, 0.6, 0.08, 0.005, 0.12); },
+    gull() { if (!ready()) return; const at = t0(), f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1900; f.Q.value = 1.5; f.connect(master);
+      const n = 2 + Math.floor(Math.random() * 3); for (let i = 0; i < n; i++) tone('sawtooth', 2300 + Math.random() * 300, 1250, 0.05, 0.03, 0.22, at + i * 0.32, f); },
+    horn(dist, high) { if (!ready()) return; const at = t0(), v = Math.min(0.35, 0.5 / (1 + dist / 250)), f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 650; f.connect(master);
+      for (const det of [0, 0.7]) { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = (high ? 165 : 98) + det; const gn = ctx.createGain();
+        gn.gain.setValueAtTime(0.0001, at); gn.gain.exponentialRampToValueAtTime(v, at + 0.25); gn.gain.setValueAtTime(v, at + 2.2); gn.gain.exponentialRampToValueAtTime(0.0001, at + 2.8);
+        o.connect(gn); gn.connect(f); o.start(at); o.stop(at + 2.9); } },
+    chirps() { if (!ready()) return; const at = t0(); for (let i = 0; i < 4; i++) tone('sine', 5200 + Math.random() * 1500, 8200 + Math.random() * 1500, 0.035, 0.01, 0.09, at + i * 0.13 + Math.random() * 0.05); },
+    shark() { if (!ready()) return; const at = t0(), f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 400; f.connect(master);
+      [0, 0.55, 1.1, 1.4, 1.7, 1.9].forEach((d, i) => tone('sawtooth', i % 2 ? 87.3 : 82.4, i % 2 ? 87 : 82, 0.22, 0.02, 0.32, at + d, f)); },
+    bark() { if (!ready()) return; for (let i = 0; i < 3; i++) setTimeout(() => { if (!ready()) return; burst('bandpass', 700, 3, 0.25, 0.02, 0.18); tone('square', 320, 220, 0.05, 0.02, 0.16); }, i * 260); },
+    blow() { if (!ready()) return; burst('lowpass', 900, 0.5, 0.3, 0.05, 1.3, 0.8); burst('bandpass', 2400, 0.7, 0.06, 0.08, 1.0); },
+    thunder() { if (!ready()) return; burst('lowpass', 140, 0.5, 0.6, 0.08, 3.2, 0.35); setTimeout(() => ready() && burst('lowpass', 90, 0.5, 0.45, 0.3, 2.2, 0.3), 400); },
+    say(text) { if (!save.voice || !save.sound || !('speechSynthesis' in window)) return; try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.rate = 1.0; u.volume = Math.min(1, save.vol + 0.2); speechSynthesis.speak(u); } catch (_) {} },
+  };
+})();
+// Browsers only allow sound after you click or press a key once
+['pointerdown', 'keydown'].forEach(ev => addEventListener(ev, () => { sfx.init(); $('btnSound').style.display = 'none'; }, { passive: true }));
+let gullT = 5, splitNext = 500, splitAt = 0;
+function updateAudio(dt, at) {
+  if (!save.sound) { $('btnSound').style.display = 'none'; return; }
+  if (!sfx.ready()) { $('btnSound').style.display = ''; return; }
+  const w = wx.here || {};
+  sfx.update({ amp: seaAmp ?? 0.4, wind: w.wind, rain: (w.code ?? 0) >= 51 ? (w.precip || 0.5) : 0 });
+  // gulls near land in daylight
+  const nearLand = Math.min(gcDist(at.p, route().pts[0]), gcDist(at.p, route().pts[route().pts.length - 1])) < 3000 || route().traffic === 'harbour';
+  if ((gullT -= dt) < 0) { gullT = 6 + Math.random() * 14; if (nearLand && darkness < 0.5) sfx.gull(); }
+  // ship horns as they come close
+  for (const s of ships) if (active.has(s.id)) {
+    const d = gcDist(shipPos(s, clock), at.p);
+    if (d < 450 && !s.honked && s.kind !== 'sail' && s.kind !== 'sail2') { s.honked = true; sfx.horn(d, s.kind === 'ferry' || s.kind === 'yacht' || s.kind === 'fish'); }
+    if (d > 900) s.honked = false;
+  }
+  // spoken split every 500 m
+  if (sess.active && sess.meters >= splitNext) {
+    const secs = sess.secs - splitAt, mm = Math.floor(secs / 60), ss = Math.round(secs % 60);
+    sfx.say(`${Math.round(splitNext)} meters. Split, ${mm} minute${mm === 1 ? '' : 's'} ${ss} seconds.`);
+    splitAt = sess.secs; splitNext += 500;
+  }
+}
+
+// =====================================================================
+// SEA LIFE: dolphins come when you push harder than your usual pace,
+// and on open water a whale shows up if you keep it going.
+// =====================================================================
+const life = { base: 0, baseT: 0, push: 0, quiet: 0, dolphins: false, whale: false, pod: [], whaleEl: null, spoutEl: null, whaleT: 0 };
+const PUSH = 1.04, DOLPHIN_AFTER = 20, WHALE_AFTER = 120;
+function updateLife(dt, sp, at) {
+  if (sp > 0.3) { life.baseT += dt; life.base += (sp - life.base) * Math.min(1, life.baseT < 30 ? dt / life.baseT : dt / 180); }
+  const ready = life.baseT > 30, target = life.base * PUSH;
+  if (ready && sp >= target) life.push += dt; else life.push = Math.max(0, life.push - dt * (sp > 0.3 ? 0.5 : 2));
+  // HUD tile
+  $('hLife').innerHTML = '<small style="font-size:.55em">🐬</small> ' + (!ready ? '…' : fmtPace(500 / target));
+  $('hLifeLbl').textContent = !ready ? 'learning your pace' : life.whale ? 'whale nearby! 🐋' : life.dolphins ? 'dolphins with you' : `dolphin pace · ${Math.min(DOLPHIN_AFTER, Math.floor(life.push))}/${DOLPHIN_AFTER}s`;
+  if (!life.dolphins && life.push >= DOLPHIN_AFTER) { life.dolphins = true; toast('🐬 Dolphins! Keep pushing and they\'ll stay with you', 6000, 'Dolphins! Keep it up.'); sfx.chirps(); spawnPod(); }
+  if (life.dolphins) { life.quiet = life.push === 0 ? life.quiet + dt : 0; if (life.quiet > 12) { life.dolphins = false; despawnPod(); toast('The dolphins swam off. Push again to bring them back.', 4000); } }
+  if (!life.whale && life.push >= WHALE_AFTER && route().traffic !== 'harbour') { life.whale = true; life.whaleT = 0; toast('🐋 A whale is surfacing beside you!', 7000, 'A whale is surfacing beside you!'); spawnWhale(); }
+  if (life.whale && !life.dolphins) { life.whale = false; despawnWhale(); }
+  if (Math.random() < dt / 6 && life.dolphins) sfx.chirps();
+}
+function spawnPod() {
+  if (!boat) return; despawnPod();
+  const n = 3 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < n; i++) life.pod.push({ el: model(URLS.dolphin), side: (i % 2 ? 1 : -1) * (3.5 + Math.random() * 5), lead: Math.random() * 30, period: 2.6 + Math.random() * 1.2, phase: Math.random() * 3, drift: 0.6 + Math.random() * 0.8 });
+}
+function despawnPod() { life.pod.forEach(d => d.el.remove()); life.pod = []; }
+function spawnWhale() { if (!boat) return; despawnWhale(); life.whaleEl = model(URLS.whale); life.spoutEl = model(URLS.spout, { scale: 0.0001 }); life.whaleSide = Math.random() < .5 ? -1 : 1; }
+function despawnWhale() { life.whaleEl?.remove(); life.spoutEl?.remove(); life.whaleEl = life.spoutEl = null; }
+// Orientation: Google applies tilt as a clockwise turn about the model's X axis, so nose-up = 360 − angle
+const noseUp = a => ((360 - a) % 360 + 360) % 360;
+function updateLifeModels(dt, at, lift) {
+  for (const d of life.pod) {
+    d.lead = (d.lead + d.drift * dt) % 34;
+    const u = ((clock + d.phase) / d.period) % 1, jump = u < 0.42, t = u / 0.42;
+    const alt = jump ? lift - 0.55 + 1.75 * Math.sin(Math.PI * t) : lift - 1.4, pitch = jump ? 48 * Math.cos(Math.PI * t) : 0;
+    const p = offset(at.p, at.hdg, d.lead - 8, d.side + Math.sin(clock * 0.7 + d.phase) * 0.8);
+    d.pos = p; d.alt = alt;
+    d.el.position = { lat: p[0], lng: p[1], altitude: alt };
+    d.el.orientation = { heading: ((at.hdg * save.hdgSign) % 360 + 360) % 360, tilt: noseUp(pitch), roll: 0 };
+  }
+  if (life.whaleEl) {
+    life.whaleT = (life.whaleT + dt) % 40; const t = life.whaleT;
+    const rise = smooth(0, 7, t), dive = smooth(19, 25, t);
+    const alt = lift - 4.2 + 3.7 * rise - 6 * dive, pitch = -22 * dive + 6 * (rise - dive) * (t < 7 ? 1 : 0);
+    const p = offset(at.p, at.hdg, 18 + t * 0.4, life.whaleSide * 34);
+    life.whaleEl.position = { lat: p[0], lng: p[1], altitude: t > 30 ? lift - 25 : alt };
+    life.whaleEl.orientation = { heading: ((at.hdg * save.hdgSign) % 360 + 360) % 360, tilt: noseUp(pitch), roll: 0 };
+    const sp = offset(at.p, at.hdg, 18 + t * 0.4 + 4.5, life.whaleSide * 34), blowOn = t > 7.5 && t < 10.5;
+    if (blowOn && !life.blew) { life.blew = true; sfx.blow(); } if (!blowOn) life.blew = false;
+    life.spoutEl.position = { lat: sp[0], lng: sp[1], altitude: lift + 0.5 };
+    life.spoutEl.scale = blowOn ? 1.2 + 6 * Math.sin(Math.PI * (t - 7.5) / 3) : 0.0001;
+  }
+}
+
+// =====================================================================
+// PARTICLES: night-time bioluminescence and day-time spray
+// Stored in lat/lng/alt with velocities in m/s (east, north, up).
+// =====================================================================
+const parts = [];
+const BIO = '90,255,225', SPRAY = '240,248,255';
+function emit(p, alt, n, o = {}) {
+  if (!p || !isFinite(p[0]) || !isFinite(p[1]) || !isFinite(alt)) return;
+  const night = darkness > 0.45, kind = o.kind || (night ? 'glow' : 'spray');
+  if (kind === 'glow' && !night) return;
+  for (let i = 0; i < n && parts.length < 900; i++) {
+    const sp = o.speed ?? (kind === 'spray' ? 1.6 : 0.25);
+    parts.push({ lat: p[0], lng: p[1], alt: alt + (o.altJitter || 0) * Math.random(), kind,
+      vx: (Math.random() - .5) * 2 * sp + (o.vx || 0), vy: (Math.random() - .5) * 2 * sp + (o.vy || 0),
+      vz: kind === 'spray' ? (o.up ?? 1.8) * (0.4 + Math.random()) : (Math.random() - .3) * 0.1,
+      life: 0, max: (o.life || (kind === 'glow' ? 1.8 : 0.9)) * (0.6 + Math.random() * 0.8), size: o.size || 1, col: o.col });
+  }
+}
+function updateParticles(dt) {
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const q = parts[i]; q.life += dt; if (q.life > q.max) { parts.splice(i, 1); continue; }
+    q.lat += q.vy * dt / 111320; q.lng += q.vx * dt / (111320 * Math.cos(rad(q.lat))); q.alt += q.vz * dt;
+    if (q.kind === 'spray') { q.vz -= 9.8 * dt; if (q.alt < lastLift - 0.2) q.life = q.max; } else { q.vx *= 0.97; q.vy *= 0.97; }
+  }
+}
+function drawParticles(g, P) {
+  g.globalCompositeOperation = 'lighter';
+  for (const q of parts) {
+    const s = P.point(q.lat, q.lng, q.alt); if (!s) continue;
+    const fade = (1 - q.life / q.max) * Math.min(1, s[2] / 10), r = Math.max(0.8, Math.min(q.kind === 'glow' ? 6 : 4, q.size * (q.kind === 'glow' ? 110 : 90) / s[2]));
+    if (q.kind === 'glow') {
+      if (!okNum(s[0], s[1], r)) continue;
+      const grd = g.createRadialGradient(s[0], s[1], 0, s[0], s[1], r * 2.4), c = q.col || BIO;
+      grd.addColorStop(0, `rgba(${c},${(0.8 * fade).toFixed(3)})`); grd.addColorStop(0.35, `rgba(${c},${(0.3 * fade).toFixed(3)})`); grd.addColorStop(1, `rgba(${c},0)`);
+      g.fillStyle = grd; g.fillRect(s[0] - r * 2.4, s[1] - r * 2.4, r * 4.8, r * 4.8);
+    } else { g.fillStyle = `rgba(${q.col || SPRAY},${(0.75 * fade).toFixed(3)})`; g.fillRect(s[0] - r / 2, s[1] - r / 2, r, r); }
+  }
+  g.globalCompositeOperation = 'source-over';
+}
+
+// =====================================================================
+// WILDLIFE DIRECTOR: every minute or so something happens, chosen to
+// suit the place (coast / open ocean / tropics) and the time (day / night)
+// =====================================================================
+const crit = { list: [], next: 20, shark: null, slowFor: 0 };
+const okNum = (...v) => v.every(Number.isFinite);
+const ENU = (p, x, y) => [p[0] + y / 111320, p[1] + x / (111320 * Math.cos(rad(p[0])))];
+function distToLand(at) { const r = route(); return Math.min(gcDist(at.p, r.pts[0]), gcDist(at.p, r.pts[r.pts.length - 1])); }
+function pickEvent(at) {
+  const night = darkness > 0.5, tr = route().traffic, lat = Math.abs(at.p[0]), coast = tr === 'harbour' || distToLand(at) < 5000 || tr === 'busy';
+  const busy = new Set(crit.list.map(e => e.type));
+  const opts = [
+    ['gulls', !night && (coast || tr !== 'ocean'), 3], ['albatross', !night && (tr === 'ocean' || tr === 'medium'), 2],
+    ['baitball', true, 3], ['flyingfish', !night && lat < 33 && tr !== 'harbour', 2.5], ['turtle', !night && lat < 40, 1.5],
+    ['seal', coast && lat > 33 && !night, 1.5], ['jelly', true, night ? 3 : 1.2], ['shark', tr !== 'harbour' && !crit.shark, 0.8],
+  ].filter(([t, ok]) => ok && !busy.has(t));
+  let x = Math.random() * opts.reduce((a, o) => a + o[2], 0);
+  for (const [t, , w] of opts) { if ((x -= w) <= 0) return t; }
+  return null;
+}
+function startEvent(type, at) {
+  const side = Math.random() < .5 ? -1 : 1, hdg = at.hdg;
+  const e = { type, t: 0, side };
+  if (type === 'gulls' || type === 'albatross') {
+    const n = type === 'gulls' ? 4 + Math.floor(Math.random() * 5) : 1 + Math.floor(Math.random() * 2);
+    e.dur = type === 'gulls' ? 45 : 40;
+    e.birds = Array.from({ length: n }, () => makeBird(type === 'gulls' ? 'gull' : 'albatross', { r: (type === 'gulls' ? 5 : 18) + Math.random() * (type === 'gulls' ? 11 : 22), a: Math.random() * 6.28,
+      w: (type === 'gulls' ? 0.35 : 0.12) * (Math.random() < .5 ? -1 : 1) * (0.7 + Math.random() * 0.6), alt: type === 'gulls' ? 3 + Math.random() * 6 : 2.5 + Math.random() * 3.5 }));
+    toast(type === 'gulls' ? '🐦 Gulls are following your boat' : '🪶 An albatross is gliding alongside', 4000);
+    if (type === 'gulls') sfx.gull();
+  } else if (type === 'baitball') {
+    e.dur = 35; e.c = offset(at.p, hdg, 35 + Math.random() * 20, side * (5 + Math.random() * 5));
+    e.fish = Array.from({ length: 70 }, () => ({ r: 1 + Math.random() * 5, a: Math.random() * 6.28, w: 0.8 + Math.random() * 1.4, z: -0.6 + Math.random() * 0.6, ph: Math.random() * 6 }));
+    e.birds = darkness > 0.5 ? [] : Array.from({ length: 5 }, () => makeBird('gull', { r: 6 + Math.random() * 10, a: Math.random() * 6.28, w: 0.5 * (Math.random() < .5 ? -1 : 1), alt: 8 + Math.random() * 10, dive: Math.random() * 6, diver: true }));
+    toast(darkness > 0.5 ? '✨ A glowing school of fish ahead' : '🐟 A school of fish is boiling at the surface ahead', 4000);
+  } else if (type === 'flyingfish') {
+    e.dur = 18; e.fish = [];
+    toast('🐟 Flying fish!', 3000);
+  } else if (type === 'jelly') {
+    e.dur = 55; e.jellies = Array.from({ length: 12 }, () => ({ p: offset(at.p, hdg, 6 + Math.random() * 34, (Math.random() - .5) * 22), ph: Math.random() * 6, size: 0.3 + Math.random() * 0.2,
+      depth: Math.random() * 0.7, dir: Math.random() * 360, drift: (Math.random() - .5) * 0.4, glow: Math.random() < .5 ? '190,140,255' : '110,220,255' }));
+    toast(darkness > 0.5 ? '🪼 Glowing jellyfish drifting below you' : '🪼 Moon jellyfish drifting below you', 4000);
+  } else if (type === 'turtle' || type === 'seal') {
+    e.dur = type === 'turtle' ? 24 : 16; e.p = offset(at.p, hdg, 22 + Math.random() * 15, side * (5 + Math.random() * 6)); e.h = Math.random() * 360;
+    e.el = model(URLS[type]);
+    toast(type === 'turtle' ? '🐢 A sea turtle is surfacing!' : '🦭 A seal is checking you out', 4000);
+  } else if (type === 'shark') {
+    e.dur = 120; e.dist = 45; e.el = model(URLS.shark); e.warned = false; crit.shark = e;
+    toast('🦈 A shark is following you — row harder to lose it!', 6000, 'A shark is following you. Row harder to lose it!'); sfx.shark();
+  }
+  crit.list.push(e);
+}
+function endEvent(e) { e.el?.remove(); removeBirds(e); if (e === crit.shark) crit.shark = null; }
+
+function updateCritters(dt, at, sp) {
+  if (!boat) return;
+  // a shark shows up if you ease off for a while on open water
+  const base = life.base || 0;
+  crit.slowFor = (life.baseT > 30 && sp > 0.3 && sp < base * 0.95) ? crit.slowFor + dt : Math.max(0, crit.slowFor - dt);
+  if (crit.slowFor > 25 && !crit.shark && route().traffic !== 'harbour') { crit.slowFor = 0; startEvent('shark', at); }
+  if ((crit.next -= dt) <= 0 && crit.list.length < 2) { const t = pickEvent(at); if (t) startEvent(t, at); crit.next = 35 + Math.random() * 40; }
+  for (let i = crit.list.length - 1; i >= 0; i--) {
+    const e = crit.list[i]; e.t += dt;
+    if (e.type === 'turtle' || e.type === 'seal') {
+      e.p = offset(e.p, e.h, (e.type === 'turtle' ? 0.35 : 0.15) * dt, 0);
+      const up = smooth(0, 3, e.t) * (1 - smooth(e.dur - 4, e.dur, e.t));
+      const alt = lastLift - (e.type === 'turtle' ? 1.2 : 1.4) + (e.type === 'turtle' ? 1.05 : 1.45) * up + Math.sin(e.t * 1.3) * 0.05;
+      const face = e.type === 'seal' ? bearing(e.p, at.p) : e.h;
+      e.el.position = { lat: e.p[0], lng: e.p[1], altitude: alt };
+      e.el.orientation = { heading: ((face * save.hdgSign) % 360 + 360) % 360, tilt: e.type === 'seal' ? noseUp(35 * up) : 0, roll: 0 };
+      if (e.t < 3 && Math.random() < dt * 6) emit(e.p, lastLift, 3);
+      if (e.type === 'seal' && !e.barked && e.t > 5) { e.barked = true; sfx.bark(); }
+    }
+    if (e.type === 'shark') {
+      const ahead = life.base && sp >= life.base * 1.03, behind = sp < (life.base || 1) * 0.98;
+      e.dist += (ahead ? 1.6 : behind ? -0.7 : 0.1) * dt; e.dist = Math.max(7, e.dist);
+      const sway = Math.sin(e.t * 0.8) * 4, p = offset(at.p, at.hdg, -e.dist, sway);
+      e.el.position = { lat: p[0], lng: p[1], altitude: lastLift - 0.62 };
+      e.el.orientation = { heading: (((at.hdg + Math.cos(e.t * 0.8) * 12) * save.hdgSign) % 360 + 360) % 360, tilt: 0, roll: 0 };
+      e.pos = p;
+      if (e.dist < 12 && !e.warned) { e.warned = true; toast('🦈 It\'s right behind you — sprint!', 4000, 'It\'s right behind you. Sprint!'); sfx.shark(); }
+      if (e.dist > 75) { toast('💪 You lost the shark!', 5000, 'You lost the shark!'); endEvent(e); crit.list.splice(i, 1); continue; }
+      $('hLifeLbl').textContent = `🦈 ${Math.round(e.dist)} m behind you`;
+    }
+    if (e.birds) updateBirds(e, dt, at);
+    if (e.t > e.dur) { endEvent(e); crit.list.splice(i, 1); }
+  }
+  // dolphins splash on the way in and out of the water in daylight
+  for (const d of life.pod) { if (!d.pos) continue; const above = d.alt > lastLift - 0.1; if (above !== d.wasAbove && d.wasAbove !== undefined) emit(d.pos, lastLift, 10, { up: 2.2 }); d.wasAbove = above; }
+}
+
+// ---------- 3D birds: one model per wing position, the right one shown each frame ----------
+const BIRD_FRAMES = 5;   // 0..3 flap cycle, 4 = glide
+function makeBird(kind, o) {
+  const b = Object.assign({ kind, flap: Math.random() * 6.28, glideFor: Math.random() * 2, size: kind === 'albatross' ? 1.1 : 1.3 }, o);
+  b.els = (kind === 'albatross' ? URLS.alb : URLS.gull).map(u => model(u, { scale: 0.0001 }));
+  return b;
+}
+function removeBirds(e) { (e.birds || []).forEach(b => b.els?.forEach(el => el.remove())); }
+function poseBird(b, p, alt, hdg, pitch, dt) {
+  // flap or glide: gulls glide in bursts, albatrosses mostly glide
+  b.glideFor -= dt;
+  if (b.glideFor < -(b.kind === 'albatross' ? 1.2 : 1.6)) b.glideFor = b.kind === 'albatross' ? 4 + Math.random() * 6 : 0.8 + Math.random() * 2.2;
+  const gliding = b.glideFor > 0 && !b.forceFlap;
+  b.flap += dt * (b.kind === 'albatross' ? 7 : 15);
+  const fi = gliding ? 4 : Math.floor((b.flap / 6.283) * 4) % 4;
+  b.els.forEach((el, i) => {
+    if (i === fi) { el.position = { lat: p[0], lng: p[1], altitude: alt }; el.orientation = { heading: ((hdg * save.hdgSign) % 360 + 360) % 360, tilt: noseUp(pitch), roll: 0 }; }
+    if (el._on !== (i === fi)) { el.scale = i === fi ? b.size : 0.0001; el._on = i === fi; }
+  });
+}
+function updateBirds(e, dt, at) {
+  if (!e.birds || !e.birds.length) return;
+  const center = e.type === 'baitball' ? e.c : offset(at.p, at.hdg, e.type === 'albatross' ? 24 : 9, 0);
+  const fadeIn = smooth(0, 4, e.t) * (1 - smooth(e.dur - 4, e.dur, e.t));
+  for (const b of e.birds) {
+    b.a += b.w * dt;
+    const p = ENU(center, Math.cos(b.a) * b.r, Math.sin(b.a) * b.r);
+    const hdg = deg(Math.atan2(-Math.sin(b.a) * Math.sign(b.w), Math.cos(b.a) * Math.sign(b.w)));
+    let alt = lastLift + b.alt * fadeIn + (1 - fadeIn) * 40, pitch = 0;
+    b.forceFlap = false;
+    if (b.diver) {                                     // plunge-dive into the fish, then flap back up
+      b.dive += dt; if (b.dive > 7 + (b.wait || 0)) { b.dive = 0; b.wait = Math.random() * 3; }
+      const d = b.dive;
+      if (d < 1.1) { alt = lastLift + b.alt * (1 - d / 1.1) + 0.1; pitch = -55 * smooth(0, 0.3, d); if (d > 1.0 && !b.splashed) { b.splashed = true; emit(p, lastLift, 14, { up: 2.8 }); puddles.push({ p, t: clock }); if (Math.random() < .5) sfx.splash(0.25); } }
+      else { b.splashed = false; alt = lastLift + 0.1 + b.alt * smooth(1.3, 3.5, d); pitch = d < 3.5 ? 25 : 0; b.forceFlap = d < 3.5; }
+    }
+    if (e.type === 'albatross') { alt = lastLift + b.alt + Math.sin(b.a * 2) * 2.5; pitch = Math.cos(b.a * 2) * 8; }
+    poseBird(b, p, alt, hdg, pitch, dt);
+  }
+}
+
+// ---------- drawn creatures (underwater / tiny / fast) ----------
+// A fish as a proper shape: pointed nose, back, forked tail, silver flank and dark back
+function drawFish(g, sH, sT, a, night, glint) {
+  const dx = sH[0] - sT[0], dy = sH[1] - sT[1], len = Math.hypot(dx, dy); if (!okNum(len) || a <= 0.01) return;
+  if (len < 3.5) { g.strokeStyle = night ? `rgba(${BIO},${(0.6 * a).toFixed(3)})` : `rgba(220,232,245,${(a * (0.4 + 0.6 * glint)).toFixed(3)})`; g.lineWidth = 1.2; g.beginPath(); g.moveTo(sT[0], sT[1]); g.lineTo(sH[0], sH[1]); g.stroke(); return; }
+  const ux = dx / len, uy = dy / len, vx = -uy, vy = ux, P2 = (u, v) => [sT[0] + ux * u * len + vx * v * len, sT[1] + uy * u * len + vy * v * len];
+  const pts = [[1, 0], [0.82, 0.12], [0.55, 0.16], [0.25, 0.1], [0.08, 0.04], [-0.12, 0.2], [-0.05, 0], [-0.12, -0.2], [0.08, -0.04], [0.25, -0.08], [0.55, -0.13], [0.82, -0.1]].map(([u, v]) => P2(u, v));
+  g.beginPath(); pts.forEach((q, i) => i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1])); g.closePath();
+  if (night) { g.fillStyle = `rgba(20,40,60,${(0.5 * a).toFixed(3)})`; g.fill(); g.strokeStyle = `rgba(${BIO},${(0.55 * a).toFixed(3)})`; g.lineWidth = 1; g.stroke(); return; }
+  const back = P2(0.5, 0.16), belly = P2(0.5, -0.14), grd = g.createLinearGradient(back[0], back[1], belly[0], belly[1]);
+  grd.addColorStop(0, `rgba(40,70,95,${a.toFixed(3)})`); grd.addColorStop(0.45, `rgba(${Math.round(150 + 100 * glint)},${Math.round(170 + 80 * glint)},${Math.round(190 + 60 * glint)},${a.toFixed(3)})`); grd.addColorStop(1, `rgba(235,240,245,${a.toFixed(3)})`);
+  g.fillStyle = grd; g.fill();
+  if (len > 9) { const eye = P2(0.86, 0.03); g.fillStyle = `rgba(10,15,20,${a.toFixed(3)})`; g.beginPath(); g.arc(eye[0], eye[1], Math.max(0.7, len * 0.035), 0, 6.283); g.fill(); }
+}
+// Flying fish: silver body with big see-through wing-fins spread wide
+function drawFlyingFish(g, sH, sT, a, flutter) {
+  const dx = sH[0] - sT[0], dy = sH[1] - sT[1], len = Math.hypot(dx, dy); if (!okNum(len) || len < 2) return;
+  const ux = dx / len, uy = dy / len, vx = -uy, vy = ux, P2 = (u, v) => [sT[0] + ux * u * len + vx * v * len, sT[1] + uy * u * len + vy * v * len];
+  for (const sd of [-1, 1]) {   // pectoral "wings"
+    const spread = (0.62 + 0.08 * flutter) * sd, root1 = P2(0.68, 0.05 * sd), root2 = P2(0.45, 0.04 * sd), tip = P2(0.3, spread), back = P2(0.15, spread * 0.55);
+    g.fillStyle = `rgba(185,215,240,${(0.45 * a).toFixed(3)})`; g.beginPath(); g.moveTo(root1[0], root1[1]); g.lineTo(tip[0], tip[1]); g.lineTo(back[0], back[1]); g.lineTo(root2[0], root2[1]); g.closePath(); g.fill();
+    g.strokeStyle = `rgba(90,130,170,${(0.6 * a).toFixed(3)})`; g.lineWidth = 0.8; g.beginPath();
+    for (const f of [0.3, 0.6, 0.9]) { const q = P2(0.3 + 0.15 * (1 - f), spread * f); g.moveTo(root1[0] * 0.5 + root2[0] * 0.5, root1[1] * 0.5 + root2[1] * 0.5); g.lineTo(q[0], q[1]); }
+    g.stroke();
+  }
+  drawFish(g, sH, sT, a, false, 0.6);
+}
+// Moon jellyfish: translucent pulsing bell, scalloped rim, the four rings inside, trailing tentacles and frilly arms
+function drawJelly(g, P, j, t, fade, night) {
+  const k = kPix(P), pulse = (Math.sin(t * 1.7 + j.ph) + 1) / 2, r = j.size * (1 - 0.14 * pulse), dome = j.size * (0.42 + 0.18 * pulse);
+  const top = waterAt(j.p) - 0.25 - j.depth, rimAlt = top - dome;
+  const sc = P.point(j.p[0], j.p[1], top); if (!sc || !okNum(sc[0], sc[1], sc[2])) return;
+  const pr = r * k / sc[2], col = night ? j.glow : '232,228,255', a = fade * (night ? 1 : 0.85) * Math.min(1, sc[2] / 6) * (1 - j.depth * 0.55) * (1 - smooth(25, 45, sc[2]));
+  if (a < 0.02) return;
+  if (pr < 2) { g.fillStyle = `rgba(${col},${(0.35 * a).toFixed(3)})`; g.fillRect(sc[0] - 1, sc[1] - 1, 2, 2); return; }
+  g.globalCompositeOperation = night ? 'lighter' : 'source-over';
+  // tentacles (behind the bell): fine threads hanging and swaying in the current
+  const tl = j.size * 2.4;
+  for (let i = 0; i < 16; i++) {
+    const th = i / 16 * 6.283, pts = [];
+    for (let d = 0; d <= tl; d += tl / 10) {
+      const sway = Math.sin(d * 2.2 - t * 1.5 + i * 0.9) * 0.07 * d + j.drift * d * 0.25;
+      const q = ENU(j.p, Math.cos(th) * r * 0.98 + sway, Math.sin(th) * r * 0.98 + Math.cos(d * 1.8 - t * 1.2 + i) * 0.05 * d);
+      const s = P.point(q[0], q[1], rimAlt - d); if (s && okNum(s[0], s[1])) pts.push(s);
+    }
+    if (pts.length < 2) continue;
+    const grd = g.createLinearGradient(pts[0][0], pts[0][1], pts[pts.length - 1][0], pts[pts.length - 1][1]);
+    grd.addColorStop(0, `rgba(${col},${(0.24 * a).toFixed(3)})`); grd.addColorStop(0.6, `rgba(${col},${(0.07 * a).toFixed(3)})`); grd.addColorStop(1, `rgba(${col},0)`);
+    g.strokeStyle = grd; g.lineWidth = Math.max(0.6, 0.012 * k / sc[2]); g.beginPath(); pts.forEach((s, n) => n ? g.lineTo(s[0], s[1]) : g.moveTo(s[0], s[1])); g.stroke();
+  }
+  // four frilly oral arms from the middle
+  for (let i = 0; i < 4; i++) {
+    const th = i / 4 * 6.283 + 0.785, pts = [];
+    for (let d = 0; d <= j.size * 1.6; d += j.size * 0.16) { const w = Math.sin(d * 6 - t * 2 + i) * 0.04; const q = ENU(j.p, Math.cos(th) * (0.15 * r + w), Math.sin(th) * (0.15 * r + w)); const s = P.point(q[0], q[1], rimAlt + dome * 0.2 - d); if (s && okNum(s[0], s[1])) pts.push(s); }
+    if (pts.length < 2) continue;
+    g.strokeStyle = `rgba(${night ? col : '215,190,240'},${(0.35 * a).toFixed(3)})`; g.lineWidth = Math.max(1, 0.05 * k / sc[2]); g.lineCap = 'round';
+    g.beginPath(); pts.forEach((s, n) => n ? g.lineTo(s[0], s[1]) : g.moveTo(s[0], s[1])); g.stroke();
+  }
+  // the bell: rim with scalloped edge, filled with a soft translucent gradient
+  const rim = [];
+  for (let i = 0; i < 40; i++) { const th = i / 40 * 6.283, rr = r * (1 + 0.035 * Math.sin(th * 16)), q = ENU(j.p, Math.cos(th) * rr, Math.sin(th) * rr), s = P.point(q[0], q[1], rimAlt + dome * 0.15 * Math.max(0, Math.sin(th))); if (!s || !okNum(s[0], s[1])) return; rim.push(s); }
+  let cx = 0, cy = 0; rim.forEach(s => { cx += s[0]; cy += s[1]; }); cx /= rim.length; cy /= rim.length;
+  const hx = sc[0] * 0.6 + cx * 0.4, hy = sc[1] * 0.6 + cy * 0.4;
+  const bell = g.createRadialGradient(hx, hy - pr * 0.25, pr * 0.05, cx, cy, pr * 1.15);
+  bell.addColorStop(0, `rgba(255,255,255,${(0.55 * a).toFixed(3)})`); bell.addColorStop(0.45, `rgba(${col},${(0.32 * a).toFixed(3)})`); bell.addColorStop(1, `rgba(${col},${(0.08 * a).toFixed(3)})`);
+  g.fillStyle = bell; g.beginPath(); rim.forEach((s, i) => i ? g.lineTo(s[0], s[1]) : g.moveTo(s[0], s[1])); g.closePath(); g.fill();
+  g.strokeStyle = `rgba(${night ? col : '245,242,255'},${(0.7 * a).toFixed(3)})`; g.lineWidth = Math.max(0.8, 0.02 * k / sc[2]); g.stroke();
+  // the dome: seen from the side the bell rises above its rim
+  let minX = 1e9, maxX = -1e9; rim.forEach(s => { minX = Math.min(minX, s[0]); maxX = Math.max(maxX, s[0]); });
+  const domeH = cy - sc[1];
+  if (domeH > 1.5) {
+    const rx = (maxX - minX) / 2, dg = g.createLinearGradient(cx, sc[1], cx, cy);
+    dg.addColorStop(0, `rgba(255,255,255,${(0.5 * a).toFixed(3)})`); dg.addColorStop(0.5, `rgba(${col},${(0.3 * a).toFixed(3)})`); dg.addColorStop(1, `rgba(${col},${(0.12 * a).toFixed(3)})`);
+    g.fillStyle = dg; g.beginPath(); g.ellipse((minX + maxX) / 2, cy, rx, domeH, 0, Math.PI, 2 * Math.PI); g.closePath(); g.fill();
+    g.strokeStyle = `rgba(${night ? col : '250,248,255'},${(0.45 * a).toFixed(3)})`; g.lineWidth = Math.max(0.8, 0.015 * k / sc[2]);
+    g.beginPath(); g.ellipse((minX + maxX) / 2, cy, rx, domeH, 0, Math.PI, 2 * Math.PI); g.stroke();
+    g.fillStyle = `rgba(255,255,255,${(0.35 * a).toFixed(3)})`; g.beginPath(); g.ellipse((minX + maxX) / 2 - rx * 0.3, cy - domeH * 0.62, rx * 0.22, domeH * 0.18, -0.4, 0, 6.283); g.fill();   // highlight
+  }
+  // the four rings (gonads) that make a moon jelly recognisable
+  for (let i = 0; i < 4; i++) {
+    const th = i / 4 * 6.283 + 0.4, c2 = ENU(j.p, Math.cos(th) * r * 0.33, Math.sin(th) * r * 0.33), s = P.point(c2[0], c2[1], rimAlt + dome * 0.7); if (!s || !okNum(s[0], s[1])) continue;
+    g.strokeStyle = `rgba(${night ? '255,170,255' : '200,120,210'},${(0.6 * a).toFixed(3)})`; g.lineWidth = Math.max(1, 0.035 * k / sc[2]);
+    g.beginPath(); g.ellipse(s[0], s[1], Math.max(1.5, pr * 0.2), Math.max(1, pr * 0.14), Math.atan2(s[1] - cy, s[0] - cx), 0.4, 5.9); g.stroke();
+  }
+  if (night) { const glow = g.createRadialGradient(cx, cy, 0, cx, cy, pr * 2.6); glow.addColorStop(0, `rgba(${col},${(0.25 * a).toFixed(3)})`); glow.addColorStop(1, `rgba(${col},0)`); g.fillStyle = glow; g.fillRect(cx - pr * 2.6, cy - pr * 2.6, pr * 5.2, pr * 5.2); }
+  g.globalCompositeOperation = 'source-over';
+}
+
+function drawCritters(g, P, at, now) {
+  const t = now / 1000, night = darkness > 0.5, k = kPix(P);
+  for (const e of crit.list) {
+    if (e.type === 'baitball') {
+      const fade = smooth(0, 3, e.t) * (1 - smooth(e.dur - 3, e.dur, e.t));
+      if (night) g.globalCompositeOperation = 'lighter';
+      for (const f of e.fish) {
+        f.a += f.w * 0.016;
+        const ang = f.a, dirS = Math.sign(f.w);
+        const p = ENU(e.c, Math.cos(ang) * f.r, Math.sin(ang) * f.r * 0.6), alt = lastLift + f.z;
+        const tx = -Math.sin(ang) * dirS, ty = Math.cos(ang) * 0.6 * dirS, tl = Math.hypot(tx, ty) || 1;
+        const head = ENU(p, tx / tl * 0.16, ty / tl * 0.16), tail = ENU(p, -tx / tl * 0.16, -ty / tl * 0.16);
+        const sH = P.point(head[0], head[1], alt), sT = P.point(tail[0], tail[1], alt); if (!sH || !sT) continue;
+        const glint = Math.max(0, Math.sin(t * 7 + f.ph * 9));
+        drawFish(g, sH, sT, fade * (0.55 + 0.45 * Math.min(1, -f.z * 2 + 0.6)), night, glint);
+      }
+      g.globalCompositeOperation = 'source-over';
+      if (!night && Math.random() < 0.25 * fade) { const q = ENU(e.c, (Math.random() - .5) * 9, (Math.random() - .5) * 5); puddles.push({ p: q, t: clock }); }   // water "boiling"
+      if (Math.random() < 0.05 * fade) emit(ENU(e.c, (Math.random() - .5) * 8, (Math.random() - .5) * 5), lastLift, 6, { up: 1.6 });     // fish jumping
+    }
+    if (e.type === 'flyingfish') {
+      if (e.t < e.dur - 4 && Math.random() < 0.04) {   // a new burst leaves the water ahead of the bow
+        const n = 2 + Math.floor(Math.random() * 5), sideA = Math.random() < .5 ? -1 : 1;
+        for (let i = 0; i < n; i++) { const h = at.hdg + sideA * (10 + Math.random() * 35); e.fish.push({ p0: offset(at.p, at.hdg, 18 + Math.random() * 22, sideA * (1 + Math.random() * 5)), h, t: -i * 0.15, dur: 2.5 + Math.random() * 1.5 }); }
+      }
+      for (const f of e.fish) {
+        f.t += 0.016; if (f.t < 0 || f.t > f.dur) continue;
+        const u = f.t / f.dur, p = offset(f.p0, f.h, 10 * f.t, 0), alt = lastLift + 1.0 * Math.sin(Math.PI * u) + 0.15;
+        if (f.t < 0.03 || (u > 0.98 && !f.landed)) { emit(p, lastLift, 8, { up: 1.5 }); if (u > 0.98) f.landed = true; }
+        const h1 = offset(p, f.h, 0.24, 0), t1 = offset(p, f.h, -0.24, 0), climb = Math.cos(Math.PI * u) * 0.08;
+        const sH = P.point(h1[0], h1[1], alt + climb), sT = P.point(t1[0], t1[1], alt - climb); if (!sH || !sT) continue;
+        drawFlyingFish(g, sH, sT, 0.95, Math.sin(t * 40));
+      }
+      e.fish = e.fish.filter(f => f.t <= f.dur);
+    }
+    if (e.type === 'jelly') {
+      const fade = smooth(0, 4, e.t) * (1 - smooth(e.dur - 4, e.dur, e.t));
+      e.jellies.sort((a, b) => gcDist(b.p, [camState.lat, camState.lng]) - gcDist(a.p, [camState.lat, camState.lng]));   // far ones first
+      for (const j of e.jellies) { j.p = offset(j.p, j.dir, 0.05 * 0.016, 0); drawJelly(g, P, j, t, fade, night); }
+    }
+  }
+}
+
+// =====================================================================
+// LIVING SEA: the swell travels in the real wave direction at a speed set
+// by the real wave period. Whitecaps in wind, sun glitter in daylight,
+// rain rings, oar swirls, a foamy wake, and at night bioluminescence drawn
+// as glowing ribbons and ripples.
+// =====================================================================
+function sunAzimuth(lat, lon, date = new Date()) {
+  const d = date / 86400000 + 2440587.5 - 2451545.0;
+  const g = rad((357.529 + 0.98560028 * d) % 360), q = (280.459 + 0.98564736 * d) % 360;
+  const L = rad(q + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g)), e = rad(23.439 - 0.00000036 * d);
+  const ra = Math.atan2(Math.cos(e) * Math.sin(L), Math.cos(L)), dec = Math.asin(Math.sin(e) * Math.sin(L));
+  const gmst = (18.697374558 + 24.06570982441908 * d) % 24, ha = rad(gmst * 15 + lon - deg(ra)), la = rad(lat);
+  return (deg(Math.atan2(Math.sin(ha), Math.cos(ha) * Math.sin(la) - Math.tan(dec) * Math.cos(la))) + 180) % 360;
+}
+// Wave pattern frame: rotated so the main swell runs along the real wave direction
+const sea = { head: 0, speed: 1.4, drift: 0, ou: 0, ov: 0, amp: 0.4, lift: 0.45 };
+const seaTravel = () => { const w = wx.here || {}; return ((w.waveDir ?? w.windDir ?? 250) + 180) % 360; };
+const seaLocal = (E, N) => { const h = rad(sea.head); return [E * Math.cos(h) - N * Math.sin(h), E * Math.sin(h) + N * Math.cos(h)]; };
+const seaWorld = (u, v) => { const h = rad(sea.head); return [u * Math.cos(h) + v * Math.sin(h), -u * Math.sin(h) + v * Math.cos(h)]; };
+// Height of our animated water at any point near the boat
+function waterAt(p) {
+  if (!seaRef) return lastLift;
+  const [E, N] = toENU(seaRef, p), [u, v] = seaLocal(E, N);
+  return sea.lift + MODELS.waveH(u - sea.ou - sea.drift, v - sea.ov, sea.amp);
+}
+
+const trails = new Map(), wakeHist = [], puddles = [], rings = [], caps = [];
+let lastPhaseSeen = 1;
+function trailPush(key, p, alt) {
+  let t = trails.get(key); if (!t) trails.set(key, t = []);
+  t.push({ p, alt, t: clock }); while (t.length && clock - t[0].t > 2.2) t.shift();
+}
+function updateSea(dt, at, sp) {
+  const nightA = smooth(0.35, 0.7, darkness), w = wx.here || {}, code = w.code ?? 0;
+  // foamy wake behind the stern (day: white foam, night: glowing)
+  if (sp > 0.3 && (!wakeHist.length || clock - wakeHist[wakeHist.length - 1].t > 0.12)) wakeHist.push({ p: offset(at.p, at.hdg, -3.5, 0), hdg: at.hdg, t: clock });
+  while (wakeHist.length && clock - wakeHist[0].t > 7) wakeHist.shift();
+  // oar swirls: a ring where each blade grips the water, and another as it pushes through
+  const ph = strokePhase, rowing = performance.now() - lastStrokeAt < 4000;
+  if (rowing && ph < lastPhaseSeen) {
+    const sw = rad(lastSweep);
+    for (const s of [-1, 1]) { const bp = offset(at.p, at.hdg, MODELS.PIN.y + 2.2 * Math.sin(sw), s * (MODELS.PIN.x + 2.2 * Math.cos(sw))); puddles.push({ p: bp, t: clock }); if (darkness < 0.5) emit(bp, waterAt(bp), 9, { up: 1.3, speed: 0.9, life: 0.7 }); }
+  }
+  lastPhaseSeen = ph;
+  while (puddles.length && clock - puddles[0].t > 2.2) puddles.shift();
+  // glowing trails behind dolphins and the shark at night
+  if (nightA > 0) {
+    life.pod.forEach((d, i) => { if (d.pos && d.alt < lastLift + 0.4) trailPush('dolphin' + i, d.pos, Math.min(d.alt, lastLift)); });
+    if (crit.shark?.pos) trailPush('shark', crit.shark.pos, lastLift - 0.25);
+  }
+  // rain rings on the water
+  const rainRate = code >= 51 && !(code >= 71 && code <= 77) ? 18 + (w.precip || 0.5) * 30 : 0;
+  for (let n = rainRate * dt; n > 0; n--) if (Math.random() < n) rings.push({ p: offset(at.p, at.hdg + (Math.random() - .5) * 140, 4 + Math.random() * 30, 0), t: clock, r: 0.25 + Math.random() * 0.25 });
+  while (rings.length && clock - rings[0].t > 0.9) rings.shift();
+  // whitecaps when it's windy
+  const windK = Math.max(0, ((w.wind || 0) - 14) / 30);
+  for (let n = windK * 10 * dt; n > 0; n--) if (Math.random() < n) caps.push({ p: offset(at.p, at.hdg + (Math.random() - .5) * 200, 12 + Math.pow(Math.random(), 0.7) * 160, 0), t: clock, len: 1.2 + Math.random() * 2.5 });
+  while (caps.length && clock - caps[0].t > 2.8) caps.shift();
+}
+
+// --- drawing helpers (all on the effects layer, additive light) ---
+const kPix = P => (P.H / 2) / Math.tan(rad(FOV / 2));
+function ribbon(g, P, pts, col, alpha, widthM, maxAge, sparkle) {
+  // project once, then draw in short continuous chunks (smooth strokes, fading with age)
+  const k = kPix(P), pr = pts.map(([p, alt, age]) => { const s = P.point(p[0], p[1], alt); return s && okNum(s[0], s[1], s[2]) ? [s[0], s[1], s[2], age] : null; });
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  for (let i = 0; i + 1 < pr.length; i += 4) {
+    const chunk = pr.slice(i, i + 5).filter(Boolean); if (chunk.length < 2) continue;
+    const mid = chunk[chunk.length >> 1], near = Math.min(1, mid[2] / 14);
+    const a = alpha * Math.max(0, 1 - mid[3] / maxAge) * near, lw = Math.max(0.8, Math.min(9, widthM * k / mid[2]));
+    if (a <= 0.003) continue;
+    const trace = () => { g.beginPath(); chunk.forEach((s, j) => j ? g.lineTo(s[0], s[1]) : g.moveTo(s[0], s[1])); };
+    g.strokeStyle = `rgba(${col},${(a * 0.1).toFixed(3)})`; g.lineWidth = lw * 2.6; trace(); g.stroke();
+    g.strokeStyle = `rgba(${col},${(a * 0.38).toFixed(3)})`; g.lineWidth = lw; trace(); g.stroke();
+  }
+  if (sparkle) pr.forEach((s, i) => {   // fine twinkling glitter scattered around the trail
+    if (!s) return; const a0 = alpha * Math.max(0, 1 - s[3] / maxAge) * Math.min(1, s[2] / 14), spread = Math.max(2, Math.min(18, widthM * 3 * k / s[2]));
+    for (let j = 0; j < 4; j++) {
+      const h1 = Math.sin(i * 12.9898 + j * 78.233) * 43758.5453, h2 = Math.sin(i * 39.346 + j * 11.135) * 24634.6345;
+      const fx = h1 - Math.floor(h1) - .5, fy = h2 - Math.floor(h2) - .5, tw = Math.max(0, Math.sin(clock * 7 + i * 1.7 + j * 2.9));
+      g.fillStyle = `rgba(200,255,240,${(a0 * tw * 0.9).toFixed(3)})`; g.fillRect(s[0] + fx * spread, s[1] + fy * spread * 0.5, 1.5, 1.5);
+    }
+  });
+}
+function ring(g, P, c, alt, rM, col, a, fillA, flat = 0.999) {
+  const pts = []; for (let i = 0; i < 20; i++) { const q = ENU(c, Math.cos(i / 20 * 6.283) * rM, Math.sin(i / 20 * 6.283) * rM), s = P.point(q[0], q[1], alt); if (!s) return; pts.push(s); }
+  if (!pts.every(s => okNum(s[0], s[1]))) return;
+  const k = kPix(P), lw = Math.max(0.8, Math.min(3, 0.04 * k / pts[0][2]));
+  g.beginPath(); pts.forEach((s, i) => i ? g.lineTo(s[0], s[1]) : g.moveTo(s[0], s[1])); g.closePath();
+  if (fillA) { g.fillStyle = `rgba(${col},${(a * fillA).toFixed(3)})`; g.fill(); }
+  g.strokeStyle = `rgba(${col},${a.toFixed(3)})`; g.lineWidth = lw; g.stroke();
+}
+function drawSea(g, P, at) {
+  const nightA = smooth(0.35, 0.7, darkness), day = 1 - darkness, w = wx.here || {};
+  const glowCol = BIO;
+  drawFoam(g, P, at);
+  g.globalCompositeOperation = 'lighter';
+  // sun glitter: sparkles on the water in the direction of the sun
+  if (sunElev > 2 && sunElev < 65 && (w.cloud ?? 0) < 75) {
+    const az = sunAzimuth(at.p[0], at.p[1]), strength = (1 - (w.cloud || 0) / 90) * (0.55 + 0.45 * (1 - sunElev / 65));
+    const spread = 4 + 22 * (sunElev / 65), n = 70;
+    for (let i = 0; i < n; i++) {
+      const d = 15 + Math.pow(Math.random(), 1.8) * 500, b = az + (Math.random() - .5) * 2 * spread * (0.4 + 60 / d);
+      const q = offset(at.p, b, d, 0), s = P.point(q[0], q[1], sea.lift); if (!s || !okNum(s[0], s[1])) continue;
+      const a = strength * (0.35 + Math.random() * 0.65), sz = Math.max(1, Math.min(3.2, 220 / s[2]));
+      g.fillStyle = `rgba(255,252,235,${a.toFixed(3)})`; g.fillRect(s[0] - sz / 2, s[1] - sz / 6, sz, Math.max(1, sz / 3));
+      if (a > 0.8) { g.fillRect(s[0] - sz * 1.5, s[1], sz * 3, 1); }
+    }
+  }
+  // glowing trails behind dolphins and the shark
+  if (nightA > 0) for (const [key, t] of trails) {
+    if (!t.length || clock - t[t.length - 1].t > 2.2) { trails.delete(key); continue; }
+    const pts = t.map(o => [o.p, Math.min(o.alt, waterAt(o.p)), clock - o.t]).reverse();
+    ribbon(g, P, pts, glowCol, 0.9 * nightA, key === 'shark' ? 0.35 : 0.25, 2.2, true);
+  }
+  // rain rings
+  for (const r of rings) { const u = (clock - r.t) / 0.9; ring(g, P, r.p, waterAt(r.p) + 0.03, r.r * (0.2 + u), '230,240,255', 0.4 * (1 - u) * (0.35 + 0.65 * day), 0); }
+  g.globalCompositeOperation = 'source-over';
+}
+
+// =====================================================================
+// SKY: warm horizon glow at sunrise/sunset, the sun when it's in view,
+// and the real moon (position + phase) with moonlight on the water.
+// =====================================================================
+function moonState(lat, lon, date = new Date()) {
+  const d = date / 86400000 + 2440587.5 - 2451545.0;
+  const L = rad(218.316 + 13.176396 * d), M = rad(134.963 + 13.064993 * d), F = rad(93.272 + 13.229350 * d);
+  const lonE = L + rad(6.289) * Math.sin(M), latE = rad(5.128) * Math.sin(F), e = rad(23.4397);
+  const ra = Math.atan2(Math.sin(lonE) * Math.cos(e) - Math.tan(latE) * Math.sin(e), Math.cos(lonE));
+  const dec = Math.asin(Math.sin(latE) * Math.cos(e) + Math.cos(latE) * Math.sin(e) * Math.sin(lonE));
+  const gmst = (18.697374558 + 24.06570982441908 * d) % 24, ha = rad(gmst * 15 + lon) - ra, la = rad(lat);
+  const el = Math.asin(Math.sin(la) * Math.sin(dec) + Math.cos(la) * Math.cos(dec) * Math.cos(ha));
+  const az = Math.atan2(Math.sin(ha), Math.cos(ha) * Math.sin(la) - Math.tan(dec) * Math.cos(la)) + Math.PI;
+  // phase from the angle between sun and moon along the ecliptic
+  const g = rad((357.529 + 0.98560028 * d) % 360), sunLon = rad((280.459 + 0.98564736 * d) % 360 + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g));
+  const elong = Math.acos(Math.cos(lonE - sunLon) * Math.cos(latE)), frac = (1 - Math.cos(elong)) / 2;
+  const waxing = (((lonE - sunLon) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI) < Math.PI;
+  return { el: deg(el), az: (deg(az) + 360) % 360, frac, waxing };
+}
+let moon = { el: -90, az: 0, frac: 0, waxing: true }, moonT = -1e9;
+function drawSky(g, P, at, golden) {
+  if (clock - moonT > 30) { moon = moonState(at.p[0], at.p[1]); moonT = clock; }
+  const k = kPix(P), hy0 = P.H / 2 - Math.tan(rad(90 - camState.tilt)) * k, hy = Number.isFinite(hy0) ? hy0 : P.H / 2;
+  const w = wx.here || {}, clear = 1 - Math.min(1, (w.cloud || 0) / 95);
+  // warm band along the horizon around sunrise/sunset (strongest toward the sun)
+  const dusk = smooth(-9, -2, sunElev) * (1 - smooth(-2, 4, sunElev));
+  if ((golden > 0.02 || dusk > 0.02) && hy > 0) {
+    const sunDir = P.dir([Math.cos(rad(sunElev)) * Math.sin(rad(sunAzimuth(at.p[0], at.p[1]))), Math.cos(rad(sunElev)) * Math.cos(rad(sunAzimuth(at.p[0], at.p[1]))), 0.02]);
+    const towardSun = sunDir ? 1 : 0.45, top = Math.max(0, hy - P.H * 0.42);
+    const grd = g.createLinearGradient(0, hy, 0, top);
+    grd.addColorStop(0, `rgba(255,${Math.round(150 - 40 * dusk)},${Math.round(80 + 40 * dusk)},${(0.45 * (golden + dusk * 0.8) * towardSun * (0.4 + 0.6 * clear)).toFixed(3)})`);
+    grd.addColorStop(0.35, `rgba(240,120,140,${(0.18 * (golden + dusk) * towardSun * clear).toFixed(3)})`);
+    grd.addColorStop(1, 'rgba(120,90,160,0)');
+    g.fillStyle = grd; g.fillRect(0, top, P.W, hy - top + 2);
+  }
+  // the sun disk and its glow when it's in view
+  if (sunElev > -1 && clear > 0.15) {
+    const az = sunAzimuth(at.p[0], at.p[1]), ce = Math.cos(rad(sunElev)), s = P.dir([ce * Math.sin(rad(az)), ce * Math.cos(rad(az)), Math.sin(rad(sunElev))]);
+    if (s && okNum(s[0], s[1]) && s[1] < hy + 4 && s[0] > -200 && s[0] < P.W + 200) {
+      const low = 1 - smooth(5, 30, sunElev), r = Math.max(4, k * Math.tan(rad(0.27)) * (1 + low * 0.6));
+      g.globalCompositeOperation = 'lighter';
+      const glow = g.createRadialGradient(s[0], s[1], 0, s[0], s[1], r * 14);
+      glow.addColorStop(0, `rgba(255,${Math.round(240 - 70 * low)},${Math.round(200 - 120 * low)},${(0.55 * clear).toFixed(3)})`); glow.addColorStop(1, 'rgba(255,200,150,0)');
+      g.fillStyle = glow; g.fillRect(s[0] - r * 14, s[1] - r * 14, r * 28, r * 28);
+      g.fillStyle = `rgba(255,${Math.round(250 - 60 * low)},${Math.round(235 - 140 * low)},${(0.95 * clear).toFixed(3)})`; g.beginPath(); g.arc(s[0], s[1], r, 0, 6.283); g.fill();
+      g.globalCompositeOperation = 'source-over';
+    }
+  }
+  // the moon, in its real phase
+  if (moon.el > -0.5 && darkness > 0.25 && clear > 0.1) {
+    const ce = Math.cos(rad(moon.el)), s = P.dir([ce * Math.sin(rad(moon.az)), ce * Math.cos(rad(moon.az)), Math.sin(rad(moon.el))]);
+    if (s && okNum(s[0], s[1]) && s[1] < hy + 3) {
+      const r = Math.max(5, k * Math.tan(rad(0.26)) * (moon.el < 12 ? 1.4 : 1)), a = Math.min(1, darkness * 1.2) * clear;
+      g.globalCompositeOperation = 'lighter';
+      const glow = g.createRadialGradient(s[0], s[1], 0, s[0], s[1], r * 9);
+      glow.addColorStop(0, `rgba(210,225,255,${(0.35 * a * (0.3 + moon.frac)).toFixed(3)})`); glow.addColorStop(1, 'rgba(210,225,255,0)');
+      g.fillStyle = glow; g.fillRect(s[0] - r * 9, s[1] - r * 9, r * 18, r * 18);
+      g.globalCompositeOperation = 'source-over';
+      g.save(); g.beginPath(); g.arc(s[0], s[1], r, 0, 6.283); g.clip();
+      g.fillStyle = `rgba(32,40,62,${a.toFixed(3)})`; g.fillRect(s[0] - r, s[1] - r, r * 2, r * 2);                 // dark side
+      const lit = moon.waxing === (at.p[0] >= 0) ? 1 : -1, off = lit * r * 2 * moon.frac;                          // lit side faces the sun
+      g.fillStyle = `rgba(240,244,255,${a.toFixed(3)})`; g.beginPath(); g.arc(s[0] - lit * 2 * r + off, s[1], r * 1.02, 0, 6.283);
+      if (moon.frac > 0.5) { g.fill(); } else { g.arc(s[0], s[1], r, 0, 6.283); g.fill('evenodd'); }
+      g.restore();
+    }
+  }
+}
+// moonlight glitter on the water, drawn with the sea effects
+function drawMoonPath(g, P, at) {
+  const w = wx.here || {}, clear = 1 - Math.min(1, (w.cloud || 0) / 90);
+  if (!(moon.el > 1 && moon.el < 60 && darkness > 0.4 && clear > 0.15 && moon.frac > 0.15)) return;
+  const strength = clear * moon.frac * (0.5 + 0.5 * (1 - moon.el / 60)) * darkness;
+  const spread = 3 + 18 * (moon.el / 60);
+  g.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 60; i++) {
+    const d = 15 + Math.pow(Math.random(), 1.8) * 500, b = moon.az + (Math.random() - .5) * 2 * spread * (0.4 + 60 / d);
+    const q = offset(at.p, b, d, 0), s = P.point(q[0], q[1], sea.lift); if (!s || !okNum(s[0], s[1])) continue;
+    const a = strength * (0.3 + Math.random() * 0.7), sz = Math.max(1, Math.min(3, 200 / s[2]));
+    g.fillStyle = `rgba(215,228,255,${a.toFixed(3)})`; g.fillRect(s[0] - sz / 2, s[1] - sz / 6, sz, Math.max(1, sz / 3));
+  }
+  g.globalCompositeOperation = 'source-over';
+}
+
+// ---------- foam: soft speckled sprites instead of lines ----------
+// A few pre-drawn foam textures (white for daytime, blue-green glow for night), drawn many times in perspective.
+const FOAM = (() => {
+  const make = (rgb, seed, dense) => {
+    const c = document.createElement('canvas'); c.width = c.height = 96; const g = c.getContext('2d');
+    let x = seed; const r = () => (x = (x * 1664525 + 1013904223) >>> 0) / 4294967296;
+    const base = g.createRadialGradient(48, 48, 0, 48, 48, 48);
+    base.addColorStop(0, `rgba(${rgb},${dense ? 0.55 : 0.35})`); base.addColorStop(0.55, `rgba(${rgb},${dense ? 0.25 : 0.12})`); base.addColorStop(1, `rgba(${rgb},0)`);
+    g.fillStyle = base; g.fillRect(0, 0, 96, 96);
+    for (let i = 0; i < (dense ? 140 : 90); i++) {          // bubbles and lacy speckles
+      const a = r() * 6.283, d = Math.pow(r(), 0.7) * 44, px = 48 + Math.cos(a) * d, py = 48 + Math.sin(a) * d, rr = 0.8 + r() * (dense ? 4 : 3);
+      const fall = 1 - d / 48;
+      g.fillStyle = `rgba(${rgb},${(0.25 + 0.6 * r()) * fall})`; g.beginPath(); g.arc(px, py, rr, 0, 6.283); g.fill();
+    }
+    for (let i = 0; i < 25; i++) {                            // dark holes make it look like real lacy foam
+      const a = r() * 6.283, d = r() * 30; g.globalCompositeOperation = 'destination-out';
+      g.fillStyle = `rgba(0,0,0,${0.3 + 0.4 * r()})`; g.beginPath(); g.arc(48 + Math.cos(a) * d, 48 + Math.sin(a) * d, 1 + r() * 3.5, 0, 6.283); g.fill();
+      g.globalCompositeOperation = 'source-over';
+    }
+    return c;
+  };
+  return { white: [7, 19, 31, 43, 57, 71].map((sd, i) => make(i % 2 ? '250,253,255' : '255,255,255', sd, i % 3 === 1)),
+           glow: [5, 23, 41, 61].map((sd, i) => make(i % 2 ? '150,255,240' : '110,250,225', sd, i === 1)) };
+})();
+// Draw a patch of foam lying flat on the water: squashed by the viewing angle so it hugs the surface
+function foamAt(g, P, p, alt, sizeM, a, night, seed = 0, stretch = 1, angle = 0) {
+  if (a < 0.01) return;
+  const s = P.point(p[0], p[1], alt); if (!s || !okNum(s[0], s[1], s[2])) return;
+  const k = kPix(P), w = sizeM * k / s[2]; if (w < 1.5) return;
+  const camH = Math.max(1, camState.alt + camState.range * Math.cos(rad(camState.tilt)) - alt), flat = Math.max(0.14, Math.min(1, camH / Math.max(1, s[2]) * 1.6));
+  const set = night ? FOAM.glow : FOAM.white, img = set[Math.abs(seed | 0) % set.length];
+  g.save(); g.globalAlpha = Math.min(1, a); g.translate(s[0], s[1]); g.scale(1, flat); g.rotate(angle);
+  g.drawImage(img, -w * stretch / 2, -w / 2, w * stretch, w); g.restore();
+}
+const hash = n => { const h = Math.sin(n * 12.9898) * 43758.5453; return h - Math.floor(h); };
+function drawFoam(g, P, at) {
+  const nightA = smooth(0.35, 0.7, darkness), day = 1 - darkness, night = nightA > 0.3, w = wx.here || {};
+  const strength = night ? 0.7 * nightA : 0.7 * (0.35 + 0.65 * day);
+  if (night) g.globalCompositeOperation = 'lighter';
+  // churned, aerated water right behind the stern, spreading into the two arms of the wake
+  for (let i = wakeHist.length - 1; i >= 0; i--) {
+    const h = wakeHist[i], age = clock - h.t, fade = Math.pow(Math.max(0, 1 - age / 7), 1.6); if (fade <= 0) continue;
+    const id = Math.round(h.t * 100);
+    // the turbulent centre line (strong for the first seconds)
+    if (age < 3) foamAt(g, P, h.p, waterAt(h.p) + 0.02, 0.8 + age * 0.35, strength * 0.45 * (1 - age / 3), night, id, 1.3, hash(id) * 6.283);
+    // the two arms of the V
+    for (const side of [-1, 1]) {
+      const q = offset(h.p, h.hdg, (hash(id + side) - .5) * 0.4, side * (0.5 + age * 0.62));
+      if (i % 2 === 0) foamAt(g, P, q, waterAt(q) + 0.02, 0.5 + age * 0.2, strength * fade * 0.75, night, id + side * 3, 1.5, (hash(id * 2 + side) - .5) * 1.2);
+    }
+  }
+  // bow wave: little curls of foam either side of the bow when moving
+  const speed = speedNow();
+  if (speed > 0.6) for (const side of [-1, 1]) for (let j = 0; j < 3; j++) {
+    const q = offset(at.p, at.hdg, 3.3 - j * 0.6, side * (0.75 + j * 0.25));
+    foamAt(g, P, q, lastBob + 0.02, 0.35 + j * 0.12, strength * 0.45 * Math.min(1, speed / 3) * (0.7 + 0.3 * Math.sin(clock * 6 + j + side)), night, j + side * 7, 1.8, 0);
+  }
+  // oar swirls: a foamy ring with a smooth dark eye, like real oar "puddles"
+  for (const pd of puddles) {
+    const u = (clock - pd.t) / 2.2; if (u > 1) continue;
+    const alt = waterAt(pd.p) + 0.03, r = 0.25 + 0.8 * Math.sqrt(u), fade = (1 - u) * (1 - u), id = Math.round(pd.t * 1000);
+    if (!night) { const sc = P.point(pd.p[0], pd.p[1], alt); if (sc && okNum(sc[0], sc[1])) { const k = kPix(P), rp = r * 0.6 * k / sc[2], camH = Math.max(1, camState.alt + camState.range * Math.cos(rad(camState.tilt))), fl = Math.max(0.14, Math.min(1, camH / sc[2] * 1.6));
+      g.fillStyle = `rgba(10,40,55,${(0.22 * fade).toFixed(3)})`; g.beginPath(); g.ellipse(sc[0], sc[1], rp, rp * fl, 0, 0, 6.283); g.fill(); } }
+    for (let i = 0; i < 9; i++) { const th = i / 9 * 6.283 + u * 2.5 + hash(id + i), q = ENU(pd.p, Math.cos(th) * r, Math.sin(th) * r); foamAt(g, P, q, alt, 0.35 + 0.25 * u, strength * 0.8 * fade, night, id + i, 1.3, th); }
+  }
+  g.globalCompositeOperation = 'source-over';
+  // whitecaps: breaking crests as patches of foam streaked downwind
+  const wd = w.windDir ?? 0;
+  for (const c of caps) {
+    const u = (clock - c.t) / 2.8, a = Math.sin(Math.PI * u) * 0.9 * (0.3 + 0.7 * day), id = Math.round(c.t * 1000);
+    for (let i = 0; i < 4; i++) { const q = offset(c.p, wd + 180, (i - 1.5) * c.len * 0.3, (hash(id + i) - .5) * 0.8); foamAt(g, P, q, waterAt(q) + 0.05, 0.9 + c.len * 0.25, a * (0.6 + 0.4 * hash(id + i * 3)), false, id + i, 2.2, 0); }
+  }
+}
+
+// ---------- Panel ----------
+let lastLog = '', wxRenderT = 0;
+function renderPanel(done, at) {
+  const r = route(), v = voyage(save.route);
+  $('vDone').innerHTML = fmtDist(done).replace(/ (\S+)$/, ' <small>$1</small>');
+  $('vBar').style.width = (done / path.total * 100).toFixed(2) + '%';
+  $('vPct').textContent = (done / path.total * 100).toFixed(done / path.total < 0.1 ? 2 : 1) + '%';
+  $('vLeft').textContent = fmtDist(path.total - done) + ' of ' + fmtDist(path.total, path.total < 10000 ? 2 : 0);
+  $('pos').textContent = fmtLat(at.p[0]) + ', ' + fmtLon(at.p[1]);
+  $('posNote').textContent = done >= path.total ? `Arrived in ${r.end} 🎉` : `${fmtDist(gcDist(r.pts[0], at.p), 2)} from ${r.start} · ${fmtDist(gcDist(at.p, r.pts[r.pts.length - 1]), 2)} to ${r.end}`;
+  const sp = speedNow();
+  $('hPace').textContent = fmtPace(sp > 0 ? 500 / sp : 0);
+  $('hPaceLbl').textContent = heightFactor() > 1 ? '/500m · height adj.' : '/500m';
+  $('hSpm').textContent = Math.round(m.spm || 0);
+  $('hWatts').textContent = Math.max(0, Math.round(m.power || 0));
+  $('hDist').textContent = Math.floor(sess.meters).toLocaleString();
+  $('hTime').textContent = fmtTime(sess.secs);
+  $('hrTile').style.display = m.hr ? '' : 'none'; $('hHr').textContent = m.hr || '–';
+  if ((wxRenderT = (wxRenderT || 0) + 1) % 8 === 0) renderWxNow();
+  const wf = windFactor(curHdg), ww = wx.here;
+  $('hWind').textContent = !ww || ww.wind == null ? '–' : !save.windOn ? fmtWind(ww.wind) : (wf >= 1 ? '+' : '−') + Math.abs(Math.round((wf - 1) * 100)) + '%';
+  $('hWind').parentElement.querySelector('span').textContent = !ww || ww.wind == null ? 'wind' : (save.windOn ? (wf > 1.005 ? 'tailwind ' : wf < 0.995 ? 'headwind ' : 'crosswind ') : 'wind ') + COMPASS(ww.windDir);
+  const key = JSON.stringify(v.sessions.slice(0, 6)) + units;
+  if (key !== lastLog) {
+    lastLog = key;
+    $('log').innerHTML = v.sessions.length ? v.sessions.slice(0, 6).map(s => `<div><span>${new Date(s.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · ${fmtTime(s.secs)}</span><b>${fmtDist(s.meters)}</b></div>`).join('') : '<div>No sessions yet on this voyage.</div>';
+  }
+}
+
+function fillRouteSelect() {
+  $('selRoute').innerHTML = Object.entries(GROUPS).map(([g, label]) => {
+    const rs = ROUTES.filter(r => r.group === g); if (!rs.length) return '';
+    return `<optgroup label="${label}">` + rs.map(r => `<option value="${r.id}">${r.name} (${fmtDist(pathOf(r).total, pathOf(r).total < 10000 ? 1 : 0)})${wxShort(wx.byRoute[r.id])}</option>`).join('') + '</optgroup>';
+  }).join('');
+  $('selRoute').value = route().id;
+}
+function fillHeight() {
+  let html = '<option value="0">Not set (no adjustment)</option>';
+  for (let inch = 55; inch <= 82; inch++) { const cm = Math.round(inch * 2.54); html += `<option value="${cm}">${ftIn(cm)} (${cm} cm)</option>`; }
+  $('selHeight').innerHTML = html;
+  const opts = [...$('selHeight').options].map(o => +o.value);
+  $('selHeight').value = save.heightCm ? opts.reduce((a, b) => Math.abs(b - save.heightCm) < Math.abs(a - save.heightCm) ? b : a, opts[1]) : 0;
+  updateHeightNote();
+}
+function updateHeightNote() {
+  const f = heightFactor();
+  $('heightNote').textContent = !save.heightCm ? 'Rowing machines measure every stroke as if you were tall, so shorter rowers move less. Set your height to even it out.'
+    : f > 1 ? `Your distance and pace are boosted ×${f.toFixed(2)} to match a ${ftIn(REF_HEIGHT)} rower's stroke. Your rower in the boat is your height too.`
+    : `No boost needed at ${ftIn(save.heightCm)}. Your rower in the boat is your height.`;
+}
+function selectRoute(id) {
+  save.route = id; persist(); path = buildPath(route().pts); miniTouchedAt = -1e9;
+  wx.here = wx.byRoute[id] || null; seaAmp = null; safe('weather', () => { renderWxNow(); if (wx.here) applySeaState(); });
+  if (source === 'sim') sess.meters = 0;
+  dispMeters = currentMeters(); rowingFor = 0;
+  if (map3d) buildModels().catch(e => console.log('[ocean-row] models', e)).finally(buildScene); else buildScene();
+}
+
+// ---------- Inputs ----------
+$('selRoute').onchange = e => safe('route switch', () => selectRoute(e.target.value));
+$('selUnits').value = units;
+$('selUnits').onchange = e => { units = save.units = e.target.value; persist(); fillRouteSelect(); renderWxNow(); lastLog = ''; };
+$('chkSound').checked = save.sound; $('rngVol').value = save.vol; $('chkVoice').checked = save.voice; $('chkWind').checked = save.windOn;
+$('chkSound').onchange = e => { save.sound = e.target.checked; persist(); if (save.sound) sfx.init(); };
+$('rngVol').oninput = e => { save.vol = +e.target.value; persist(); };
+$('chkVoice').onchange = e => { save.voice = e.target.checked; persist(); };
+$('chkWind').onchange = e => { save.windOn = e.target.checked; persist(); renderWxNow(); };
+$('settings').addEventListener('toggle', () => { if ($('settings').open) setTimeout(() => $('settings').scrollIntoView({ behavior: 'smooth', block: 'start' }), 60); });
+const CAM_ORDER = [null, 'chase', 'fpv', 'side', 'drone', 'back'];
+function setCam(v) { forced = v; lastViewName = ''; $('btnCam').textContent = '🎥 ' + (v ? VIEWS[v].name : 'Auto camera'); }
+$('btnCam').onclick = () => setCam(CAM_ORDER[(CAM_ORDER.indexOf(forced) + 1) % CAM_ORDER.length]);
+$('btnFlip').onclick = () => { save.hdgSign *= -1; persist(); toast('Boat direction flipped. Tap again to undo.', 3000); };
+$('btnSound').onclick = () => { sfx.init(); $('btnSound').style.display = 'none'; };
+$('selHeight').onchange = e => { save.heightCm = +e.target.value; persist(); updateHeightNote(); rebuildRower(); };
+$('btnConnect').onclick = connectBLE;
+$('btnSim').onclick = () => safe('simulator', () => { if (source === 'ble') { setStatus('Your rower is connected, so the simulator is off.'); return; } startSession('sim'); setStatus('Simulator: press Space in a steady rhythm. Nothing here is saved.', 'ok'); });
+$('btnPause').onclick = () => { sess.paused = !sess.paused; $('btnPause').textContent = sess.paused ? 'Resume' : 'Pause'; setStatus(sess.paused ? 'Paused. Meters are not counted.' : 'Rowing.', sess.paused ? '' : 'ok'); };
+$('btnReset').onclick = () => { if (!confirm(`Restart "${route().name}" from the beginning?`)) return; save.voyages[save.route] = { meters: 0, sessions: [], finished: null }; sess.logIdx = -1; persist(); dispMeters = 0; };
+$('btnExport').onclick = () => { const a = document.createElement('a'); const { gkey, ...data } = save; a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })); a.download = `ocean-row-backup-${new Date().toISOString().slice(0, 10)}.json`; a.click(); };
+$('btnImport').onclick = () => $('fileImport').click();
+$('fileImport').onchange = async e => { try { const s = JSON.parse(await e.target.files[0].text()); if (!s.voyages) throw 0; save = Object.assign(save, s); persist(); fillRouteSelect(); fillHeight(); selectRoute(save.route); setStatus('Progress restored.', 'ok'); } catch (_) { setStatus('That file is not an Ocean Row backup.', 'err'); } };
+$('btnKey').onclick = () => showSetup();
+$('btnSaveKey').onclick = () => {
+  const k = $('keyInput').value.trim();
+  if (k.length < 20) { $('setupErr').textContent = 'That doesn\'t look like a full key.'; return; }
+  const changed = k !== save.gkey; save.gkey = k; persist();
+  if (window.google?.maps?.importLibrary) { if (changed || !map3d) location.reload(); else $('setup').classList.add('hidden'); return; }
+  $('setup').classList.add('hidden'); loadGoogle(k); initGoogle();
+};
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (e.code === 'Space' && source === 'sim') { e.preventDefault(); if (!e.repeat) simStroke(); }
+  const views = { Digit1: 'chase', Digit2: 'fpv', Digit3: 'side', Digit4: 'drone', Digit5: 'back' };
+  if (views[e.code]) setCam(views[e.code]);
+  if (e.code === 'Digit0') setCam(null);
+  if (e.code === 'KeyH') { save.hdgSign *= -1; persist(); toast('Boat direction flipped (press H again to undo)', 3000); }   // fix if boats point the wrong way
+});
+
+// ---------- Main loop ----------
+let last = performance.now(), saveT = 0, panelT = 0, shipT = 0, audioT = 0, dispMeters = currentMeters();
+const reported = new Set();
+function safe(name, fn) {
+  try { return fn(); } catch (e) {
+    if (!reported.has(name)) { reported.add(name); console.error('[ocean-row] ' + name + ':', e); setStatus(`Oops, a problem in "${name}": ${e.message}. Everything else keeps running, please tell me this message.`, 'err'); }
+  }
+}
+function loop(now) {
+  requestAnimationFrame(loop);
+  const dt = Math.min(0.25, (now - last) / 1000); last = now; clock += dt;
+  const simX = source === 'sim' ? +$('selSimSpeed').value : 1;
+  if (source === 'sim') {
+    sim.power *= Math.pow(0.55, dt);
+    sim.times = sim.times.filter(t => now - t < 6000);
+    const n = sim.times.length; m.spm = n > 1 && now - sim.times[n - 1] < 4000 ? Math.round(60000 * (n - 1) / (sim.times[n - 1] - sim.times[0])) : 0;
+    m.power = Math.round(sim.power); m.pace = m.power > 5 ? 500 / powerToSpeed(m.power) : null;
+    addMeters(rawSpeed() * dt * simX);
+  }
+  if (source === 'ble' && m.dist == null) addMeters(rawSpeed() * dt);
+  const sp = speedNow();
+  if (sess.active && !sess.paused && sp > 0) { sess.secs += dt; rowingFor += dt; if (source === 'ble' && sess.logIdx >= 0) voyage(save.route).sessions[sess.logIdx].secs = Math.round(sess.secs); }
+  else if (sp === 0) rowingFor = Math.max(0, Math.min(rowingFor, 10) - dt);
+
+  const target = currentMeters();
+  dispMeters += sp * dt * simX;
+  dispMeters += (target - dispMeters) * Math.min(1, dt * 1.5);
+  if (dispMeters > target + 3) dispMeters = target + 3;
+  const at = posAt(path, Math.min(dispMeters, path.total));
+
+  safe('sea life', () => updateLife(dt, sp, at));
+  safe('particles', () => updateParticles(dt));
+  safe('sea', () => updateSea(dt, at, sp));
+  safe('wildlife', () => updateCritters(dt, at, sp));
+  if (map3d) safe('3D scene', () => updateScene(dt, now, at));
+  safe('effects', () => drawFX(now, at));
+  if ((audioT += dt) > 0.2) { safe('sound', () => updateAudio(audioT, at)); audioT = 0; }
+  safe('camera', () => updateCamera(dt, at.p, at.hdg));
+  if ((panelT += dt) > 0.25) { panelT = 0; safe('panel', () => renderPanel(target, posAt(path, target))); safe('mini map', () => updateMini(at.p, at.idx, at.hdg)); }
+  if ((saveT += dt) > 5) { saveT = 0; if (source === 'ble') persist(); }
+}
+addEventListener('beforeunload', persist);
+addEventListener('visibilitychange', () => { if (document.hidden) persist(); });
+
+// ---------- Start ----------
+fillRouteSelect(); fillHeight();
+refreshWeather(); setInterval(refreshWeather, 10 * 60 * 1000);
+if (location.protocol.startsWith('http')) connectBridge(false);
+if (save.gkey) { loadGoogle(save.gkey); initGoogle(); } else showSetup();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
